@@ -7,3 +7,10 @@ export interface EsocialSchema {
 }
 
 export type LoadSource = 'zip' | 'local';
+
+export interface TreeNode {
+  id: string;
+  name: string;      // o que exibimos na UI
+  kind: string;      // schema, element, complexType, simpleType, sequence, choice, attribute, enum...
+  children?: TreeNode[];
+}

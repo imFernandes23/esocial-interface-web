@@ -26,7 +26,7 @@ export class SchemaStoreService {
   private loadAll(): import('../shared/models/schema-models').EsocialSchema[] {
     try {
       const raw = localStorage.getItem(this.KEY);
-      console.log(raw? JSON.parse(raw): [])
+      
       return raw ? JSON.parse(raw) : [];
     } catch { return []; }
   }

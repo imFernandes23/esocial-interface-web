@@ -1,13 +1,13 @@
 import { TestBed } from '@angular/core/testing';
 
-import { XmlKitService } from './xml-kit.service';
+import { XmlKit } from './xml-kit';
 
-describe('XmlKitService', () => {
-  let service: XmlKitService;
+describe('XmlKit', () => {
+  let service: XmlKit;
 
   beforeEach(() => {
     TestBed.configureTestingModule({});
-    service = TestBed.inject(XmlKitService);
+    service = TestBed.inject(XmlKit);
   });
 
   it('should be created', () => {
