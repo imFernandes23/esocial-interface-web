@@ -1,0 +1,53 @@
+.card {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+.row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.btn {
+  display: inline-block;
+  padding: 8px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f8fafc;
+  cursor: pointer;
+}
+.danger {
+  border: 1px solid #fecaca;
+  background: #fee2e2;
+}
+.muted {
+  color: #64748b;
+  font-size: 12px;
+}
+.tools {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border: 1px dashed #e5e7eb;
+  border-radius: 10px;
+  padding: 12px;
+}
+.tag {
+  font-weight: 600;
+}
+.doc {
+  color: #334155;
+}
