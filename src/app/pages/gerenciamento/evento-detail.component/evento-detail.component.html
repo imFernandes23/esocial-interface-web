@@ -4,33 +4,25 @@
   </div>
 
   <div class="card" *ngIf="schema">
-    <div class="box" (click)="toggle('root')">
-      <div class="box-head">
+    <div class="box">
+      <div class="box-head" (click)="toggleRoot($event)">
         <div class="left">
-          <span class="tag">Tag: eSocial</span>
-          <span class="doc">Doc: {{ label }}</span>
+          <span class="tag">{{ label }}</span>
         </div>
-        <div class="right">{{ isOpen('root') ? '▾' : '▸' }}</div>
+        <div class="right">{{ rootOpen ? '▾' : '▸' }}</div>
       </div>
-      <div class="box-body" *ngIf="isOpen('root')">
+      <div class="box-body" *ngIf="rootOpen">
         <!-- Aqui virão os grupos/elementos na ordem exata → próxima etapa -->
-        <div class="subbox">
-          <div class="subbox-head">Configuração básica</div>
-          <div class="subbox-body">
-            <p class="muted">MVP: nesta área vamos aplicar as regras de edição sem invalidar:
-              min/maxOccurs com limites (ex.: 1..N → pode setar 50; 0..50 → máx 50),
-              tamanhos de string, enums (remover opções, adicionar apenas válidas), etc.
-            </p>
-          </div>
-        </div>
-
-        <div class="subbox">
-          <div class="subbox-head">Outros grupos/elementos</div>
-          <div class="subbox-body">
-            <p class="muted">As “caixas” serão renderizadas na ordem do XSD.</p>
-          </div>
-        </div>
-
+        <ng-container *ngIf="rootNode else noTree" >
+          <app-schema-node
+           *ngFor="let node of topLevelViewNodes; trackBy: trackNode"
+           [node]="node"
+           [depth]="0"
+          ></app-schema-node>
+        </ng-container>
+        <ng-template #noTree>
+          <p class="muted"> Esquema não disponível </p>
+        </ng-template>
         <div class="actions">
           <button class="btn primary" (click)="save()">Salvar alterações</button>
         </div>

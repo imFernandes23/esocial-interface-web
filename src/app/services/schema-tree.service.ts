@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { TreeNode } from '../shared/models/schema-models';
+import { TreeNode, ViewNode } from '../shared/models/schema-models';
 
 const XS = 'http://www.w3.org/2001/XMLSchema';
 
@@ -52,7 +52,7 @@ export class SchemaTreeService {
       if (el.localName === 'complexType') {
         children.push(this.buildComplexTypeNode(el as Element, idx, `${id}/ct:${getName(el)}`, new Set()));
       } else if (el.localName === 'simpleType') {
-        children.push(this.buildSimpleTypeNode(el as Element, `${id}/st:${getName(el)}`));
+        children.push(this.buildSimpleTypeNode(el as Element, `${id}/st:${getName(el)}`, idx, new Set()));
       } else if (el.localName === 'group' || el.localName === 'attributeGroup') {
         children.push({
           id: `${id}/${el.localName}:${getName(el)}`,
@@ -104,49 +104,60 @@ export class SchemaTreeService {
   }
 
   private buildElementNode(el: Element, idx: Indexes, id: string, visited: Set<string>): TreeNode {
-    const name = getName(el) || '(element)';
-    const children: TreeNode[] = [];
+  const name = getName(el) || '(element)';
+  const children: TreeNode[] = [];
+  const meta: { base?: string; typeName?: string } = {};
 
-    // inline complexType
-    const inlineCT = firstChildNS(el, 'complexType');
-    if (inlineCT) {
-      const next = new Set(visited);
-      children.push(this.buildComplexTypeNode(inlineCT, idx, `${id}/ct:inline`, next));
-    }
+  // inline complexType
+  const inlineCT = firstChildNS(el, 'complexType');
+  if (inlineCT) {
+    children.push(this.buildComplexTypeNode(inlineCT, idx, `${id}/ct:inline`, new Set(visited)));
+  }
 
-    // inline simpleType
-    const inlineST = firstChildNS(el, 'simpleType');
-    if (inlineST) {
-      children.push(this.buildSimpleTypeNode(inlineST, `${id}/st:inline`));
-    }
+  // inline simpleType → lê a base e já sobe para o element
+  const inlineST = firstChildNS(el, 'simpleType');
+  if (inlineST) {
+    const stNode = this.buildSimpleTypeNode(inlineST, `${id}/st:inline`, idx, new Set(visited));
+    children.push(stNode);
+    if (stNode.meta?.base) meta.base = stNode.meta.base;        // 👈 promove para o element
+  }
 
-    // referenciado por @type
-    const type = el.getAttribute('type');
-    if (type) {
-      const tname = qNameLocal(type);
-      if (idx.complex.has(tname) && !visited.has(`ct:${tname}`)) {
+  // referenciado por @type
+  const type = el.getAttribute('type');
+  if (type) {
+    meta.typeName = type; 
+    const tname = qNameLocal(type);
+    if (idx.complex.has(tname) && !visited.has(`ct:${tname}`)) {
+      const next = new Set(visited); next.add(`ct:${tname}`);
+      children.push(this.buildComplexTypeNode(idx.complex.get(tname)!, idx, `${id}/ct:${tname}`, next));
+    } else if (idx.simple.has(tname) && !visited.has(`st:${tname}`)) {
+      const next = new Set(visited); next.add(`st:${tname}`);
+      const stNode = this.buildSimpleTypeNode(idx.simple.get(tname)!, `${id}/st:${tname}`, idx, next);
+      children.push(stNode);
+      if (stNode.meta?.base) meta.base = stNode.meta.base;
+      if (!meta.base && stNode.meta?.base) meta.base = stNode.meta.base; // 👈 promove base do tipo referenciado
+    } else {
+      // fallback (procura globalmente)
+      const foundCT = findGlobalByName(idx.docs, 'complexType', tname);
+      const foundST = !foundCT && findGlobalByName(idx.docs, 'simpleType', tname);
+      if (foundCT && !visited.has(`ct:${tname}`)) {
         const next = new Set(visited); next.add(`ct:${tname}`);
-        children.push(this.buildComplexTypeNode(idx.complex.get(tname)!, idx, `${id}/ct:${tname}`, next));
-      } else if (idx.simple.has(tname) && !visited.has(`st:${tname}`)) {
+        children.push(this.buildComplexTypeNode(foundCT, idx, `${id}/ct:${tname}`, next));
+      } else if (foundST && !visited.has(`st:${tname}`)) {
         const next = new Set(visited); next.add(`st:${tname}`);
-        children.push(this.buildSimpleTypeNode(idx.simple.get(tname)!, `${id}/st:${tname}`));
+        const stBuilt = this.buildSimpleTypeNode(foundST, `${id}/st:${tname}`, idx, next);
+        children.push(stBuilt);
+        if (!meta.base && stBuilt.meta?.base) meta.base = stBuilt.meta.base; // 👈 promove
       } else {
-        // fallback: procurar no(s) doc(s) por tipo global com esse nome
-        const foundCT = findGlobalByName(idx.docs, 'complexType', tname);
-        const foundST = !foundCT && findGlobalByName(idx.docs, 'simpleType', tname);
-        if (foundCT && !visited.has(`ct:${tname}`)) {
-          const next = new Set(visited); next.add(`ct:${tname}`);
-          children.push(this.buildComplexTypeNode(foundCT, idx, `${id}/ct:${tname}`, next));
-        } else if (foundST && !visited.has(`st:${tname}`)) {
-          const next = new Set(visited); next.add(`st:${tname}`);
-          children.push(this.buildSimpleTypeNode(foundST, `${id}/st:${tname}`));
-        } else {
-          children.push({ id: `${id}/type:${type}`, name: `type ${type}`, kind: 'type', children: [] });
-        }
+        children.push({ id: `${id}/type:${type}`, name: `type ${type}`, kind: 'type', children: [] });
       }
     }
+  }
 
-    return { id, name, kind: 'element', children };
+  // monta o nó do element com meta (se tiver)
+  const node: any = { id, name, kind: 'element', children };
+  if (meta.base) node.meta = meta;
+  return node as TreeNode;
   }
 
   private buildComplexTypeNode(ct: Element, idx: Indexes, id: string, visited: Set<string>): TreeNode {
@@ -224,31 +235,102 @@ export class SchemaTreeService {
     return node;
   }
 
-  private buildSimpleTypeNode(st: Element, id: string): TreeNode {
-    const name = st.getAttribute('name') || '(simpleType)';
-    const children: TreeNode[] = [];
+private buildSimpleTypeNode(st: Element, id: string, idx: Indexes, visited = new Set<string>()): TreeNode {
+  const name = st.getAttribute('name') || '(simpleType)';
+  const children: TreeNode[] = [];
+  let base: string | undefined;
 
-    const restr = firstChildNS(st, 'restriction');
-    if (restr) {
-      const base = restr.getAttribute('base');
-      if (base) {
-        children.push({ id: `${id}/base:${base}`, name: `base ${base}`, kind: 'type', children: [] });
-      }
-      const enums = Array.from(restr.children).filter(c => c.namespaceURI === XS && c.localName === 'enumeration') as Element[];
-      if (enums.length) {
-        const enumNode: TreeNode = { id: `${id}/enumeration`, name: 'enumeration', kind: 'enumeration', children: [] };
-        for (const e of enums) {
-          const v = e.getAttribute('value') || '(enum)';
-          enumNode.children!.push({ id: `${enumNode.id}/${v}`, name: v, kind: 'enumValue', children: [] });
-        }
-        children.push(enumNode);
+  const restr = firstChildNS(st, 'restriction');
+  if (restr) {
+    base = restr.getAttribute('base') || undefined;
+
+    // 1) facets comuns (mostra algo útil mesmo sem enum)
+    for (const facet of Array.from(restr.children)) {
+      if (facet.namespaceURI !== XS) continue;
+      const ln = facet.localName;
+      if (['enumeration','pattern','length','minLength','maxLength','totalDigits','fractionDigits','minInclusive','maxInclusive','minExclusive','maxExclusive'].includes(ln)) {
+        if (ln === 'enumeration') continue; // trataremos logo abaixo
+        const val = (facet as Element).getAttribute('value') || '';
+        children.push({ id: `${id}/${ln}:${val}`, name: `${ln}: ${val}`, kind: ln, children: [] });
       }
     }
-    return { id, name, kind: 'simpleType', children };
+
+    // 2) enumeration (se houver)
+    const enums = Array
+      .from(restr.children)
+      .filter(c => c.namespaceURI === XS && c.localName === 'enumeration') as Element[];
+    if (enums.length) {
+      const enumNode: TreeNode = { id: `${id}/enumeration`, name: 'enumeration', kind: 'enumeration', children: [] };
+      for (const e of enums) {
+        const v = e.getAttribute('value') || '(enum)';
+        enumNode.children!.push({ id: `${enumNode.id}/${v}`, name: v, kind: 'enumValue', children: [] });
+      }
+      children.push(enumNode);
+    }
+
+    // 3) se a base for um tipo nomeado (não xs:*), resolver e renderizar como filho
+    if (base) {
+      const local = qNameLocal(base);
+      const isBuiltin = /^xs?:/.test(base) || base.startsWith('xs:') || base === 'string' || base === 'byte';
+      if (!isBuiltin) {
+        // evitar ciclo
+        if (!visited.has(`st:${local}`)) {
+          const foundST = idx.simple.get(local) || findGlobalByName(idx.docs, 'simpleType', local);
+          if (foundST) {
+            const next = new Set(visited); next.add(`st:${local}`);
+            const baseNode = this.buildSimpleTypeNode(foundST, `${id}/st:${local}`, idx, next);
+            children.unshift(baseNode); // mostrar o tipo-base primeiro
+          } else {
+            // não achou? pelo menos mostra como "type ..."
+            children.unshift({ id: `${id}/type:${base}`, name: `type ${base}`, kind: 'type', children: [] });
+          }
+        }
+      }
+    }
   }
+
+  return { id, name, kind: 'simpleType', children, meta: { base } };
+}
 }
 
 /* ---------------- helpers puros ---------------- */
+
+  const OMIT_KINDS = new Set<string>([
+    'complexType', 'sequence', 'choice', 'all', 'attributes', 'enumeration', 'ds:Signature'
+    // se quiser, adicione 'attributes' para esconder o grupo de atributos
+  ]);
+
+  export function buildViewTree(root: TreeNode, omitKinds = OMIT_KINDS): ViewNode {
+    // cria o nó de view correspondente ao root
+    const view: ViewNode = {
+      id: root.id,
+      name: root.name,
+      kind: root.kind,
+      source: root,
+      meta: root.meta ? { ...root.meta } : undefined,
+      children: [],
+    };
+
+    if (!root.children?.length) return view;
+
+    for (const ch of root.children) {
+      if (omitKinds.has(ch.kind)) {
+        // NÃO cria um nó para 'sequence/choice/all/complexType'
+        // Em vez disso, "promove" os netos para o nível atual
+        const promoted = buildViewTree(ch, omitKinds).children ?? [];
+        for (const p of promoted) view.children!.push(p);
+      } else {
+        // mantém o nó normalmente
+        view.children!.push(buildViewTree(ch, omitKinds));
+      }
+    }
+    return view;
+  }
+
+function readSimpleTypeBase(st: Element): string | undefined {
+  const restr = firstChildNS(st, 'restriction');
+  return restr?.getAttribute('base') || undefined;
+}
 
 function parseXml(text: string): Document {
   const doc = new DOMParser().parseFromString(text, 'application/xml');

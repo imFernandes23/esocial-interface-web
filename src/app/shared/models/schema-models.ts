@@ -13,4 +13,20 @@ export interface TreeNode {
   name: string;      // o que exibimos na UI
   kind: string;      // schema, element, complexType, simpleType, sequence, choice, attribute, enum...
   children?: TreeNode[];
+  meta?: {
+    typeName?: string;
+    base?: string;
+  }
+}
+
+export interface ViewNode {
+  id: string;
+  name: string;
+  kind: string;
+  children?: ViewNode[];
+  source: TreeNode;
+  meta?: {   
+    typeName?: string;
+    base?: string;
+};
 }

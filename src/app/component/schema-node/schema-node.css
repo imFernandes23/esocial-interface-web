@@ -1,0 +1,25 @@
+.box {
+  border: 1px dashed #e5e7eb;
+  border-radius: 10px;
+  margin-bottom: 8px;
+}
+.box-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  cursor: pointer;
+}
+.box-body {
+  border-top: 1px dashed #e5e7eb;
+  padding: 12px;
+}
+.left .tag {
+  font-weight: 600;
+  margin-right: 8px;
+}
+.muted {
+  color: #64748b;
+  font-size: 13px;
+}
+.right { opacity: .8; }

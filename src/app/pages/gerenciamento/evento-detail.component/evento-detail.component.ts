@@ -2,14 +2,15 @@ import { CommonModule } from '@angular/common';
 import { Component } from '@angular/core';
 import { RouterModule, ActivatedRoute, Router } from '@angular/router';
 import { SchemaStoreService } from '../../../services/schema-store.service';
-import { EsocialSchema, TreeNode } from '../../../shared/models/schema-models';
-import { SchemaTreeService } from '../../../services/schema-tree.service';
+import { EsocialSchema, TreeNode, ViewNode } from '../../../shared/models/schema-models';
+import { buildViewTree, SchemaTreeService } from '../../../services/schema-tree.service';
+import { SchemaNode } from "../../../component/schema-node/schema-node";
 
 const XS = 'http://www.w3.org/2001/XMLSchema';
 
 @Component({
   selector: 'app-evento-detail.component',
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, RouterModule, SchemaNode],
   templateUrl: './evento-detail.component.html',
   styleUrl: './evento-detail.component.css'
 })
@@ -19,8 +20,9 @@ export class EventoDetailComponent {
   title = '';
   fileName = '';
   rootNode: TreeNode | null = null;
+  viewRoot: ViewNode | null = null;
 
-  private open = new Set<string>();
+  rootOpen = true;;
 
   constructor(
     private route: ActivatedRoute, 
@@ -46,12 +48,31 @@ export class EventoDetailComponent {
       this.rootNode = this.treeService.buildEventoTree(String(DocEvento), String(DocTipos))
       console.log(this.rootNode)
     }
+
+    if (this.rootNode) {
+      // se seu root é "schema", mostre todos os filhos dele como 1º nível
+      const rootToShow = this.rootNode.kind === 'schema' && this.rootNode.children?.length
+        ? { ...this.rootNode, children: this.rootNode.children } // mesmo root
+        : this.rootNode;
+
+      this.viewRoot = buildViewTree(rootToShow);
+    }
   }
 
+    /** filhos de primeiro nível a renderizar no root visual */
+  get topLevelViewNodes(): ViewNode[] {
+    if (!this.viewRoot) return [];
+    // se o root é "schema", mostre todos os filhos dele
+    return this.viewRoot.children ?? [this.viewRoot];
+  }
 
+  trackNode = (_: number, n: TreeNode) => n.id;
 
-  toggle(key: string){ this.open.has(key) ? this.open.delete(key) : this.open.add(key); }
-  isOpen(key: string){ return this.open.has(key); }
+  toggleRoot(ev?: Event) {
+    ev?.stopPropagation(); // impede click dentro do body fechar o root
+    this.rootOpen = !this.rootOpen;
+  }
+
 
   goBack(){ history.length > 1 ? history.back() : this.router.navigate(['/gerenciamento']); }
 
