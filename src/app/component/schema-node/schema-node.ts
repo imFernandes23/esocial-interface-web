@@ -20,4 +20,5 @@ export class SchemaNode {
   }
 
   trackById = (_: number, n: ViewNode) => n.id;
+  trackStr  = (_: number, s: string) => s;
 }

@@ -23,3 +23,16 @@
   font-size: 13px;
 }
 .right { opacity: .8; }
+
+.docbox {
+  background: #f8fafc;
+  border: 1px solid #eef2f7;
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin-bottom: 10px;
+}
+.docline {
+  font-size: 13px;
+  color: #334155;
+  line-height: 1.35;
+}

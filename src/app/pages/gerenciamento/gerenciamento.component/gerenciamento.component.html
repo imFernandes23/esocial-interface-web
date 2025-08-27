@@ -12,7 +12,7 @@
         <option [ngValue]="null">— escolher salvo —</option>
         <option *ngFor="let s of saved" [value]="s.id">{{ s.id }} ({{ s.createdAt | date:'short' }})</option>
       </select>
-      <button (click)="loadSelected()" [disabled]="!selectedId">Carregar</button>
+      <button class="btn" (click)="loadSelected()" [disabled]="!selectedId">Carregar</button>
     </div>
   </div>
 
@@ -35,7 +35,7 @@
           <div class="doc">Doc: {{ ev.isTipos ? 'tipos' : ev.label }}</div>
         </div>
         <div class="right">
-          <button (click)="openEvent(ev.fileName)">Abrir</button>
+          <button class="btn" (click)="openEvent(ev.fileName)">Abrir</button>
           <button class="danger" (click)="deleteEvent(ev.fileName)" [disabled]="ev.isTipos">Excluir</button>
         </div>
       </div>

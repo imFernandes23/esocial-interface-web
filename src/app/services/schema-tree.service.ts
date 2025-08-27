@@ -106,7 +106,12 @@ export class SchemaTreeService {
   private buildElementNode(el: Element, idx: Indexes, id: string, visited: Set<string>): TreeNode {
   const name = getName(el) || '(element)';
   const children: TreeNode[] = [];
-  const meta: { base?: string; typeName?: string } = {};
+  const meta: { base?: string; typeName?: string; docs?: string[]} = {};
+
+  // docs do próprio <xs:element>
+
+  const docs = collectDocs(el);
+  if (docs.length) meta.docs = docs;
 
   // inline complexType
   const inlineCT = firstChildNS(el, 'complexType');
@@ -156,13 +161,16 @@ export class SchemaTreeService {
 
   // monta o nó do element com meta (se tiver)
   const node: any = { id, name, kind: 'element', children };
-  if (meta.base) node.meta = meta;
+  if (Object.keys(meta).length) node.meta = meta;
   return node as TreeNode;
   }
 
   private buildComplexTypeNode(ct: Element, idx: Indexes, id: string, visited: Set<string>): TreeNode {
     const name = ct.getAttribute('name') || '(complexType)';
     const children: TreeNode[] = [];
+    const meta: { docs?: string[] } = {};
+    const docs = collectDocs(ct);
+    if (docs.length) meta.docs = docs;
 
     // complexContent (extension/restriction)
     let model: Element = ct;
@@ -201,7 +209,9 @@ export class SchemaTreeService {
       children.push(aNode);
     }
 
-    return { id, name, kind: 'complexType', children };
+    const node: any = { id, name, kind: 'complexType', children };
+    if (meta.docs?.length) node.meta = meta;
+    return node as TreeNode;
   }
 
   /** sequence/choice/all recursivo (desce em sub-grupos também) */
@@ -240,9 +250,17 @@ private buildSimpleTypeNode(st: Element, id: string, idx: Indexes, visited = new
   const children: TreeNode[] = [];
   let base: string | undefined;
 
+  const meta: any = {};
+  const docs = collectDocs(st);
+  if (docs.length) meta.docs = docs;
+
   const restr = firstChildNS(st, 'restriction');
   if (restr) {
+    const restrDocs = collectDocs(restr);
+    if (restrDocs.length) meta.docs = [...(meta.docs || []), ...restrDocs];
+
     base = restr.getAttribute('base') || undefined;
+    meta.base = base;
 
     // 1) facets comuns (mostra algo útil mesmo sem enum)
     for (const facet of Array.from(restr.children)) {
@@ -289,11 +307,29 @@ private buildSimpleTypeNode(st: Element, id: string, idx: Indexes, visited = new
     }
   }
 
-  return { id, name, kind: 'simpleType', children, meta: { base } };
+  const node: any = { id, name, kind: 'simpleType', children };
+  if (Object.keys(meta).length) node.meta = meta;
+  return node as TreeNode;
 }
+  
 }
 
 /* ---------------- helpers puros ---------------- */
+
+  function collectDocs(el: Element): string[] {
+    const out: string[] = [];
+    for (const ann of Array.from(el.children)) {
+      if (ann.namespaceURI !== XS || ann.localName !== 'annotation') continue;
+      for (const c of Array.from(ann.children)) {
+        if (c.namespaceURI === XS && c.localName === 'documentation') {
+          const txt = (c.textContent || '').trim().replace(/\s+/g, ' ');
+          if (txt) out.push(txt);
+        }
+      }
+    }
+    console.log(out)
+    return out;
+  }
 
   const OMIT_KINDS = new Set<string>([
     'complexType', 'sequence', 'choice', 'all', 'attributes', 'enumeration', 'ds:Signature'

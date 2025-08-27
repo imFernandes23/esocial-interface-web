@@ -16,6 +16,7 @@ export interface TreeNode {
   meta?: {
     typeName?: string;
     base?: string;
+    docs?: string[];
   }
 }
 
@@ -28,5 +29,6 @@ export interface ViewNode {
   meta?: {   
     typeName?: string;
     base?: string;
+    docs?: string[]
 };
 }

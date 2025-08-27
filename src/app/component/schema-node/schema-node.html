@@ -15,6 +15,13 @@
   </div>
 
   <div class="box-body" *ngIf="open" (click)="$event.stopPropagation()">
+
+    <ng-container *ngIf="(node.meta?.docs || node.source?.meta?.docs) as docs">
+      <div class="docbox">
+        <div class="docline" *ngFor="let d of docs; trackBy: trackStr">{{ d }}</div>
+      </div>
+    </ng-container>
+
     <ng-container *ngIf="node.children?.length; else leaf">
       <app-schema-node
         *ngFor="let c of node.children; trackBy: trackById"
@@ -23,8 +30,6 @@
       </app-schema-node>
     </ng-container>
 
-    <ng-template #leaf>
-      <p class="muted">— sem filhos —</p>
-    </ng-template>
+    <ng-template #leaf></ng-template>
   </div>
 </div>

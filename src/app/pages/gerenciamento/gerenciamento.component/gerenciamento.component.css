@@ -20,8 +20,13 @@
   cursor: pointer;
 }
 .danger {
+  display: inline-block;
+  padding: 8px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
   border: 1px solid #fecaca;
   background: #fee2e2;
+  cursor: pointer;
 }
 .muted {
   color: #64748b;
@@ -50,4 +55,9 @@
 }
 .doc {
   color: #334155;
+}
+
+.right {
+  display: flex;
+  gap: 10px;
 }
