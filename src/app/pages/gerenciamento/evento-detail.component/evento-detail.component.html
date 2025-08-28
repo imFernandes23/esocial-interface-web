@@ -24,8 +24,42 @@
           <p class="muted"> Esquema não disponível </p>
         </ng-template>
         <div class="actions">
-          <button class="btn primary" (click)="save()">Salvar alterações</button>
+          <button class="btn primary" (click)="openConfirm()">Salvar alterações</button>
         </div>
       </div>
     </div>
   </div>
+
+  <app-modal
+  *ngIf="showConfirm"
+  title="Aplicar alterações no XSD"
+  [width]="900"
+  [confirmText]="'Aplicar agora'"
+  [cancelText]="'Voltar'"
+  [disabled]="applyDisabled"
+  (confirm)="confirmApply()"
+  (cancel)="showConfirm=false">
+
+  <div class="muted" *ngIf="applyDisabled">Nenhuma alteração pendente.</div>
+
+  <div *ngIf="!applyDisabled">
+    <h4 style="margin:8px 0 6px">Relatório</h4>
+    <ul style="margin:0 0 12px 18px; padding:0;">
+      <li *ngFor="let r of reportLines">{{ r }}</li>
+    </ul>
+
+    <details>
+      <summary>Prévia dos arquivos (após aplicar)</summary>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:10px;">
+        <div>
+          <div class="docline"><strong>{{fileName}}</strong></div>
+          <pre style="max-height:45vh; overflow:auto; background:#0f172a; color:#e2e8f0; padding:10px; border-radius:8px; font-size:12px;">{{ previewEvento }}</pre>
+        </div>
+        <div>
+          <div class="docline"><strong>tipos.xsd</strong></div>
+          <pre style="max-height:45vh; overflow:auto; background:#0f172a; color:#e2e8f0; padding:10px; border-radius:8px; font-size:12px;">{{ previewTipos }}</pre>
+        </div>
+      </div>
+    </details>
+  </div>
+</app-modal>

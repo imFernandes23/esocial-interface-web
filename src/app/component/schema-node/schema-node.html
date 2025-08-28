@@ -1,35 +1,55 @@
 <div class="box" [style.marginLeft.px]="depth * 12">
   <div class="box-head" (click)="onHeaderClick($event)">
     <div class="left">
-        <span class="tag">{{ node.name }}</span>
-        <ng-container *ngIf="(node.meta?.typeName || node.source?.meta?.typeName) as typeName">
-            <span class="doc">type: {{ typeName }}</span>
-        </ng-container>
-
-        <!-- base -->
-        <ng-container *ngIf="(node.meta?.base || node.source?.meta?.base) as base">
-            <span class="doc" style="margin-left:8px">base: {{ base }}</span>
-        </ng-container>
+      <span class="tag">{{ node.name }}</span>
+      <span class="doc" *ngIf="typeName">type: {{ typeName }}</span>
+      <span class="doc" *ngIf="base" style="margin-left:8px">base: {{ base }}</span>
+      <span class="doc" *ngIf="use" style="margin-left:8px">use: {{ use }}</span>
     </div>
     <div class="right">{{ open ? '▾' : '▸' }}</div>
   </div>
 
   <div class="box-body" *ngIf="open" (click)="$event.stopPropagation()">
-
+    <!-- Documentação do nó-->
     <ng-container *ngIf="(node.meta?.docs || node.source?.meta?.docs) as docs">
       <div class="docbox">
         <div class="docline" *ngFor="let d of docs; trackBy: trackStr">{{ d }}</div>
       </div>
     </ng-container>
 
-    <ng-container *ngIf="node.children?.length; else leaf">
-      <app-schema-node
-        *ngFor="let c of node.children; trackBy: trackById"
-        [node]="c"
-        [depth]="depth + 1">
-      </app-schema-node>
+    
+    <!-- ↓↓↓ enum como LISTA (sem caixas/toggle) ↓↓↓ -->
+    <ng-container *ngIf="node.kind === 'enumeration'; else normalChildren">
+      <div class="enum-list">
+        <div class="enum-row"
+             *ngFor="let val of (node.children || []); trackBy: trackById"
+             [class.removed]="isEnumRemoved(val)">
+          <div class="enum-left">
+            <strong class="enum-value">{{ val.name }}</strong>
+            <span class="enum-doc" *ngIf="(val.meta?.docs || val.source?.meta?.docs) as vdocs">
+              {{ vdocs[0] || '' }}
+            </span>
+          </div>
+          <div class="enum-actions">
+            <button class="btn danger" *ngIf="!isEnumRemoved(val)" (click)="removeEnum(val)">Remover</button>
+            <button class="btn" *ngIf="isEnumRemoved(val)" (click)="undoEnum(val)">Desfazer</button>
+          </div>
+        </div>
+      </div>
     </ng-container>
 
-    <ng-template #leaf></ng-template>
+    <!-- render padrão (não-enum) -->
+    <ng-template #normalChildren>
+      <ng-container *ngIf="node.children?.length; else leaf">
+        <app-schema-node
+          *ngFor="let c of node.children; trackBy: trackById"
+          [node]="c"
+          [depth]="depth + 1">
+        </app-schema-node>
+      </ng-container>
+      <ng-template #leaf>
+        <p class="muted">— sem filhos —</p>
+      </ng-template>
+    </ng-template>
   </div>
 </div>

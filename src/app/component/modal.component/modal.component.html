@@ -1,0 +1,19 @@
+<div class="modal-backdrop" (click)="onBackdrop($event)">
+  <div class="modal-card" [style.maxWidth.px]="width" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h3>{{ title }}</h3>
+      <button class="icon" (click)="cancel.emit()">✕</button>
+    </div>
+
+    <div class="modal-body">
+      <ng-content></ng-content>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn" (click)="cancel.emit()">{{ cancelText }}</button>
+      <button class="btn primary" [disabled]="disabled" (click)="confirm.emit()">
+        {{ confirmText }}
+      </button>
+    </div>
+  </div>
+</div>

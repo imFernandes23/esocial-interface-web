@@ -169,8 +169,10 @@ export class SchemaTreeService {
     const name = ct.getAttribute('name') || '(complexType)';
     const children: TreeNode[] = [];
     const meta: { docs?: string[] } = {};
+
     const docs = collectDocs(ct);
     if (docs.length) meta.docs = docs;
+    
 
     // complexContent (extension/restriction)
     let model: Element = ct;
@@ -200,7 +202,43 @@ export class SchemaTreeService {
     if (attrs.length || attrRefs.length) {
       const aNode: TreeNode = { id: `${id}/attributes`, name: 'attributes', kind: 'attributes', children: [] };
       for (const a of attrs) {
-        aNode.children!.push({ id: `${aNode.id}/${getName(a)}`, name: getName(a) || '(attribute)', kind: 'attribute', children: [] });
+        const aName = getName(a) || '(attribute)';
+        const aMeta: any = {};
+        const aChildren: TreeNode[] = [];
+
+        // docs
+        const docs = collectDocs(a);
+        if (docs.length) aMeta.docs = docs;
+
+        // use (required/optional/prohibited)
+        const use = a.getAttribute('use');
+        if (use) aMeta.use = use;
+
+        // type (resolve igual em element)
+        const type = a.getAttribute('type');
+        if (type) {
+          aMeta.typeName = type;
+          const tname = qNameLocal(type);
+
+          if (idx.simple.has(tname)) {
+            const stNode = this.buildSimpleTypeNode(idx.simple.get(tname)!, `${aNode.id}/${aName}/st:${tname}`, idx, new Set());
+            aChildren.push(stNode);
+            if (stNode.meta?.base) aMeta.base = stNode.meta.base;
+          } else if (idx.complex.has(tname)) {
+            const ctNode = this.buildComplexTypeNode(idx.complex.get(tname)!, idx, `${aNode.id}/${aName}/ct:${tname}`, new Set());
+            aChildren.push(ctNode);
+          } else {
+            aChildren.push({ id: `${aNode.id}/${aName}/type:${type}`, name: `type ${type}`, kind: 'type', children: [] });
+          }
+        }
+
+        aNode.children!.push({
+          id: `${aNode.id}/${aName}`,
+          name: aName,
+          kind: 'attribute',
+          children: aChildren,
+          meta: aMeta
+        });
       }
       for (const ag of attrRefs) {
         const ref = ag.getAttribute('ref') || '';
@@ -281,7 +319,10 @@ private buildSimpleTypeNode(st: Element, id: string, idx: Indexes, visited = new
       const enumNode: TreeNode = { id: `${id}/enumeration`, name: 'enumeration', kind: 'enumeration', children: [] };
       for (const e of enums) {
         const v = e.getAttribute('value') || '(enum)';
-        enumNode.children!.push({ id: `${enumNode.id}/${v}`, name: v, kind: 'enumValue', children: [] });
+        const docs = collectDocs(e);
+        const n: any = { id: `${enumNode.id}/${v}`, name: v, kind: 'enumValue', children: []}
+        if(docs.length) n.meta = { docs }
+        enumNode.children!.push(n);
       }
       children.push(enumNode);
     }
@@ -332,7 +373,7 @@ private buildSimpleTypeNode(st: Element, id: string, idx: Indexes, visited = new
   }
 
   const OMIT_KINDS = new Set<string>([
-    'complexType', 'sequence', 'choice', 'all', 'attributes', 'enumeration', 'ds:Signature'
+    'complexType', 'sequence', 'choice', 'all', 'attributes'
     // se quiser, adicione 'attributes' para esconder o grupo de atributos
   ]);
 
@@ -351,8 +392,6 @@ private buildSimpleTypeNode(st: Element, id: string, idx: Indexes, visited = new
 
     for (const ch of root.children) {
       if (omitKinds.has(ch.kind)) {
-        // NÃO cria um nó para 'sequence/choice/all/complexType'
-        // Em vez disso, "promove" os netos para o nível atual
         const promoted = buildViewTree(ch, omitKinds).children ?? [];
         for (const p of promoted) view.children!.push(p);
       } else {
