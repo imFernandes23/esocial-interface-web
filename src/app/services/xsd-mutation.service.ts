@@ -167,4 +167,113 @@ export class XsdMutationService {
 
     return { eventoXml: serialize(eventoDoc), tiposXml: serialize(tiposDoc), changes, report };
   }
+
+  applyStringFacets(eventoXml: string, tiposXml: string,
+    edits: Array<[string,{ length?: number; minLength?: number; maxLength?: number; patterns?: string[] }]>) {
+
+    const parse = (xml: string) => new DOMParser().parseFromString(xml, 'application/xml');
+    const serialize = (doc: Document) => new XMLSerializer().serializeToString(doc);
+    const XS = 'http://www.w3.org/2001/XMLSchema';
+
+    const eventoDoc = parse(eventoXml);
+    const tiposDoc  = parse(tiposXml);
+
+    const getOrMake = (parent: Element, local: string) => {
+      let el = Array.from(parent.getElementsByTagNameNS(XS, local)).find(e => e.parentNode === parent) as Element | undefined;
+      if (!el) { el = parent.ownerDocument!.createElementNS(XS, `xs:${local}`); parent.appendChild(el); }
+      return el!;
+    };
+
+    const setFacet = (restr: Element, local: 'length'|'minLength'|'maxLength'|'pattern', value?: string|number) => {
+      // remove todos existentes desse tipo e cria 1 novo se value definido (MVP)
+      Array.from(restr.getElementsByTagNameNS(XS, local)).forEach(n => { if (n.parentNode === restr) n.parentNode!.removeChild(n); });
+      if (value === undefined || value === null || value === '') return;
+      const el = restr.ownerDocument!.createElementNS(XS, `xs:${local}`);
+      el.setAttribute('value', String(value));
+      restr.appendChild(el);
+    };
+
+    const findSimpleTypeRestriction = (doc: Document, ctxId: string): Element | null => {
+      // heurística: se tiver st:<Name> → busca global; se tiver st:inline → pega inline sob último el:<Name>
+      const stMatch = ctxId.match(/\/st:([A-Za-z_][\w.-]*)/g);
+      const stName  = stMatch ? stMatch[stMatch.length-1].replace('/st:','') : undefined;
+      if (stName) {
+        const st = Array.from(doc.getElementsByTagNameNS(XS,'simpleType')).find(e=>e.getAttribute('name')===stName);
+        const r  = st && Array.from(st.children).find(c=>c.namespaceURI===XS && c.localName==='restriction');
+        return (r as Element) || null;
+      }
+      if (/\/st:inline/.test(ctxId)) {
+        const elMatch = ctxId.match(/\/el:([A-Za-z_][\w.-]*)/g);
+        const elName  = elMatch ? elMatch[elMatch.length-1].replace('/el:','') : undefined;
+        if (elName) {
+          const el = Array.from(doc.getElementsByTagNameNS(XS,'element')).find(e=>e.getAttribute('name')===elName);
+          const st = el && Array.from(el.children).find(c=>c.namespaceURI===XS && c.localName==='simpleType');
+          const r  = st && Array.from((st as Element).children).find(c=>c.namespaceURI===XS && c.localName==='restriction');
+          return (r as Element) || null;
+        }
+      }
+      return null;
+    };
+
+    let changes = 0; const report: string[] = [];
+
+    for (const [ctxId, f] of edits) {
+      // tente primeiro no tipos, depois no evento
+      let restr = findSimpleTypeRestriction(tiposDoc, ctxId) || findSimpleTypeRestriction(eventoDoc, ctxId);
+      if (!restr) { report.push(`⚠️ Restriction não encontrada para ${ctxId}`); continue; }
+
+      // regras “apertar rédeas”
+      const current = collectStringFacets(restr);
+      if (f.minLength !== undefined && current.minLength !== undefined && f.minLength < current.minLength) f.minLength = current.minLength;
+      if (f.maxLength !== undefined && current.maxLength !== undefined && f.maxLength > current.maxLength) f.maxLength = current.maxLength;
+      if (f.length !== undefined) {
+        if (current.length !== undefined && f.length < current.length) f.length = current.length;
+        // ajustar coerência
+        f.minLength = Math.max(f.minLength ?? 0, f.length);
+        f.maxLength = Math.min(f.maxLength ?? f.length, f.length);
+      }
+
+      // aplica
+      setFacet(restr, 'length',    f.length);
+      if (f.length === undefined) {
+        setFacet(restr, 'minLength', f.minLength);
+        setFacet(restr, 'maxLength', f.maxLength);
+      } else {
+        // length definido ⇒ remove min/max redundantes
+        setFacet(restr, 'minLength', undefined);
+        setFacet(restr, 'maxLength', undefined);
+      }
+      if (f.patterns && f.patterns[0]) setFacet(restr, 'pattern', f.patterns[0]);
+
+      changes++;
+      const to = f.length ?? `${f.minLength ?? '∅'}..${f.maxLength ?? '∞'}`;
+      report.push(`Facets de string atualizados (${ctxId}) → ${to}${f.patterns?.[0] ? `, pattern: ${f.patterns[0]}` : ''}`);
+    }
+
+    return { eventoXml: serialize(eventoDoc), tiposXml: serialize(tiposDoc), changes, report };
+  }
 }
+
+type StringFacets = {
+  length?: number;
+  minLength?: number;
+  maxLength?: number;
+  patterns?: string[];   // múltiplos pattern = AND em XSD
+};
+
+  function collectStringFacets(restr: Element): StringFacets {
+    const XS = 'http://www.w3.org/2001/XMLSchema';
+    const f: StringFacets = {};
+    for (const c of Array.from(restr.children)) {
+      if (c.namespaceURI !== XS) continue;
+      const e = c as Element;
+      const v = e.getAttribute('value');
+      switch (e.localName) {
+        case 'length':       f.length    = v ? Number(v) : undefined; break;
+        case 'minLength':    f.minLength = v ? Number(v) : undefined; break;
+        case 'maxLength':    f.maxLength = v ? Number(v) : undefined; break;
+        case 'pattern':     (f.patterns ??= []).push(v ?? ''); break;
+      }
+    }
+    return f;
+  }

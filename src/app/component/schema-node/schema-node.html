@@ -17,6 +17,8 @@
       </div>
     </ng-container>
 
+    <!-- Ocorrencias-->
+
     <div class="occurs" *ngIf="showOccursEditor">
       <div class="occ-row">
         <div class="occ-item" *ngIf="occurs?.min === 0 || occMin === 0">
@@ -47,7 +49,45 @@
       </div>
     </div>
 
-    
+    <!-- FORM de string facets -->
+    <div class="sf-box" *ngIf="showStringEditor">
+      <div class="sf-row">
+        <label class="lbl">Comprimento exato</label>
+        <input type="number" min="1" [value]="sfDraft.length ?? ''" placeholder="opcional"
+              (input)="setLen(($event.target).valueAsNumber)">
+        <span class="hint" *ngIf="stringFacets?.length">mín {{stringFacets?.length}} (não pode diminuir)</span>
+      </div>
+
+      <div class="sf-row">
+        <label class="lbl">Mínimo</label>
+        <input type="number" min="0" [value]="sfDraft.minLength ?? stringFacets?.minLength ?? 0"
+              (input)="setMinLen(($event.target).valueAsNumber)">
+        <span class="hint" *ngIf="stringFacets?.minLength">mín {{stringFacets?.minLength}} (↑ apenas)</span>
+      </div>
+
+    <div class="sf-row">
+      <label class="lbl">Máximo</label>
+      <input
+        type="number" min="1"
+        [value]="maxForForm"
+        placeholder="{{ inferredMax ? ('sugerido: ' + inferredMax) : 'opcional' }}"
+        (input)="setMaxLen(($event.target).valueAsNumber)" />
+      <span class="hint"
+            *ngIf="stringFacets?.maxLength; else hintInfer">
+        máx {{stringFacets?.maxLength}} (↓ apenas)
+      </span>
+      <ng-template #hintInfer>
+        <span class="hint" *ngIf="inferredMax">sugerido pelo nome do tipo</span>
+      </ng-template>
+    </div>
+
+      <div class="sf-row">
+        <label class="lbl">Pattern (regex)</label>
+        <input type="text" [value]="(sfDraft.patterns?.[0] ?? stringFacets?.patterns?.[0]) || ''"
+              placeholder="ex.: ^\\S.*$" (input)="setPattern(($event.target).value)">
+        <span class="hint">adicionar/substituir (mais restritivo)</span>
+      </div>
+    </div>
     <!-- ↓↓↓ enum como LISTA (sem caixas/toggle) ↓↓↓ -->
     <ng-container *ngIf="node.kind === 'enumeration'; else normalChildren">
       <div class="enum-list">
@@ -70,9 +110,9 @@
 
     <!-- render padrão (não-enum) -->
     <ng-template #normalChildren>
-      <ng-container *ngIf="node.children?.length; else leaf">
+      <ng-container *ngIf="filteredChildren().length; else leaf">
         <app-schema-node
-          *ngFor="let c of node.children; trackBy: trackById"
+          *ngFor="let c of filteredChildren(); trackBy: trackById"
           [node]="c"
           [depth]="depth + 1">
         </app-schema-node>

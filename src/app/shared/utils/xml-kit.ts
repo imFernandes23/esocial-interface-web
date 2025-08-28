@@ -112,3 +112,12 @@ export function extractSchemaInfo(doc: Document): XsdSchemaInfo {
     elements,
   };
 }
+
+export function inferMaxFromTypeName(typeName?: string | null): number | undefined {
+  if (!typeName) return undefined;
+  // pega o último bloco numérico (suporta _12_34_56, -12-34, etc.)
+  const m = typeName.match(/(\d+)(?!.*\d)/);
+  if (!m) return undefined;
+  const n = Number(m[1]);
+  return Number.isFinite(n) ? n : undefined;
+}

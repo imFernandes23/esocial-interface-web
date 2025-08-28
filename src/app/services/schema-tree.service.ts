@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import { OccursMeta, TreeNode, ViewNode } from '../shared/models/schema-models';
+import { inferMaxFromTypeName } from '../shared/utils/xml-kit';
 
 const XS = 'http://www.w3.org/2001/XMLSchema';
 
@@ -304,6 +305,21 @@ private buildSimpleTypeNode(st: Element, id: string, idx: Indexes, visited = new
 
   const restr = firstChildNS(st, 'restriction');
   if (restr) {
+    base = restr.getAttribute('base') || undefined;
+    meta.base = base;
+  if (base && base.toLowerCase().endsWith(':string')) {
+    const f = collectStringFacets(restr);       
+    if (f.length || f.minLength || f.maxLength || (f.patterns?.length)) {
+      meta.stringFacets = f;  
+    }
+    if (!f.length && !f.maxLength) {
+      const inferred = inferMaxFromTypeName(getName(st)); // getName(st) = "TS_nrProc_17_20_21"
+      if (inferred !== undefined) {
+        (meta as any).inferred = { maxLengthFromName: inferred };
+      }
+    }
+  }
+
     const restrDocs = collectDocs(restr);
     if (restrDocs.length) meta.docs = [...(meta.docs || []), ...restrDocs];
 
@@ -366,6 +382,30 @@ private buildSimpleTypeNode(st: Element, id: string, idx: Indexes, visited = new
 }
 
 /* ---------------- helpers puros ---------------- */
+
+type StringFacets = {
+  length?: number;
+  minLength?: number;
+  maxLength?: number;
+  patterns?: string[];   // múltiplos pattern = AND em XSD
+};
+
+  function collectStringFacets(restr: Element): StringFacets {
+    const XS = 'http://www.w3.org/2001/XMLSchema';
+    const f: StringFacets = {};
+    for (const c of Array.from(restr.children)) {
+      if (c.namespaceURI !== XS) continue;
+      const e = c as Element;
+      const v = e.getAttribute('value');
+      switch (e.localName) {
+        case 'length':       f.length    = v ? Number(v) : undefined; break;
+        case 'minLength':    f.minLength = v ? Number(v) : undefined; break;
+        case 'maxLength':    f.maxLength = v ? Number(v) : undefined; break;
+        case 'pattern':     (f.patterns ??= []).push(v ?? ''); break;
+      }
+    }
+    return f;
+  }
 
   function collectDocs(el: Element): string[] {
     const out: string[] = [];

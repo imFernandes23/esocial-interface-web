@@ -13,6 +13,13 @@ export interface OccursMeta {
   max: number | 'unbounded'
 }
 
+export interface StringFacets {
+  length?: number;
+  minLength?: number;
+  maxLength?: number;
+  patterns?: string[]
+}
+
 export interface TreeNode {
   id: string;
   name: string;      // o que exibimos na UI
@@ -24,6 +31,7 @@ export interface TreeNode {
     use?: 'required'|'optional'|'prohibited'|string;
     docs?: string[];
     occurs?: OccursMeta;
+    stringFacets?: StringFacets
   }
 }
 
@@ -39,5 +47,6 @@ export interface ViewNode {
     use?: 'required'|'optional'|'prohibited'|string;
     docs?: string[];
     occurs?: OccursMeta;
+    stringFacets?: StringFacets;
   };
 }

@@ -1,14 +1,14 @@
 import { Injectable } from '@angular/core';
+import { StringFacets } from '../shared/models/schema-models';
 
 @Injectable({
-  providedIn: 'root'
+  providedIn: 'root',
 })
 export class EditBufferService {
-
   // Editar Enums
   private removed = new Set<string>();
 
-  private key(contextId: string, value: string){
+  private key(contextId: string, value: string) {
     return `${contextId}|${value}`;
   }
 
@@ -30,19 +30,50 @@ export class EditBufferService {
 
   ///Editar Ocorrencias
 
-  clear() {this.removed.clear()}
+  clear() {
+    this.removed.clear();
+  }
 
-  private occurs = new Map<string, { min: number; max: number|'unbounded' }>();
+  private occurs = new Map<string, { min: number; max: number | 'unbounded' }>();
 
-  setOccurs(contextId: string, min: number, max: number|'unbounded') {
+  setOccurs(contextId: string, min: number, max: number | 'unbounded') {
     this.occurs.set(contextId, { min, max });
   }
-  getOccursMin(contextId: string){ return this.occurs.get(contextId)?.min; }
-  getOccursMax(contextId: string){ return this.occurs.get(contextId)?.max; }
+  getOccursMin(contextId: string) {
+    return this.occurs.get(contextId)?.min;
+  }
+  getOccursMax(contextId: string) {
+    return this.occurs.get(contextId)?.max;
+  }
 
-  snapshotOccurs(){
+  snapshotOccurs() {
     return Array.from(this.occurs.entries()); // [ [contextId, {min,max}], ... ]
   }
 
-  clearOccurs(){ this.occurs.clear(); }
+  clearOccurs() {
+    this.occurs.clear();
+  }
+
+  /// Editar String Facets
+
+  private stringEdits = new Map<
+    string,
+    StringFacets
+  >();
+
+  setStringFacets(
+    ctxId: string,
+    f: StringFacets
+  ) {
+    this.stringEdits.set(ctxId, { ...f });
+  }
+  getStringFacets(ctxId: string) {
+    return this.stringEdits.get(ctxId);
+  }
+  snapshotStringFacets() {
+    return Array.from(this.stringEdits.entries());
+  }
+  clearStringFacets() {
+    this.stringEdits.clear();
+  }
 }

@@ -22,10 +22,47 @@ export class SchemaNode {
     this.open = !this.open;
   }
 
+  //// Getter de string facets
+  get isStringType(): boolean {
+    const base = this.base?.toLowerCase();
+    return !!(base && (base === 'xs:string' || base.endsWith(':string')));
+  }
+  get sfDraft(): any {
+    return this.edits.getStringFacets(this.node.id) ?? { ...(this.stringFacets ?? {}) };
+  }
+
+  get stringFacets() {
+    return this.node.meta?.stringFacets ?? this.node.source?.meta?.stringFacets ?? undefined;
+  }
+
+  get isStringSimpleType(): boolean {
+    const base = (this.base || '').toLowerCase();
+    const isSimple = this.node.kind === 'simpleType' || this.node.source?.kind === 'simpleType';
+    return isSimple && (base.endsWith(':string'));
+  }
+
+  get showStringEditor(): boolean {
+    return this.isStringSimpleType && !!this.stringFacets;
+  }
+
+  get inferredMax(): number | undefined {
+    return (this.node.meta as any)?.inferred?.maxLengthFromName
+        ?? (this.node.source?.meta as any)?.inferred?.maxLengthFromName;
+  }
+
+  get maxForForm(): number | '' {
+    const edited = this.edits.getStringFacets(this.node.id)?.maxLength;
+    if (edited !== undefined) return edited;
+    const facet = this.stringFacets?.maxLength;
+    if (facet !== undefined) return facet;
+    return this.inferredMax ?? '';
+  }
+  
+  //// Getter de Ocorencias
+  
   get occurs(): { min: number; max: number|'unbounded'} | null {
     return (this.node.meta?.occurs ?? this.node.source?.meta?.occurs) ?? null;
   }
-
   get showOccursEditor(): boolean {
     const oc = this.occurs;
     if (!oc) return false;
@@ -44,6 +81,11 @@ export class SchemaNode {
     return v ?? (this.occurs?.max ?? 1);
   }
 
+  ///// Getter de Documentação e Cabeçalho
+
+  get docs(): string[] {
+    return this.node?.meta?.docs ?? this.node?.source?.meta?.docs ?? [];
+  }
   get typeName(): string | undefined {
     return this.node?.meta?.typeName ?? this.node?.source?.meta?.typeName;
   }
@@ -53,8 +95,38 @@ export class SchemaNode {
   get use(): string | undefined {
     return this.node?.meta?.use ?? this.node?.source?.meta?.use;
   }
-  get docs(): string[] {
-    return this.node?.meta?.docs ?? this.node?.source?.meta?.docs ?? [];
+///////////////////////// Funções manipuladoras /////////////////////////////////
+  // String Facets Helpers
+
+  setMinLen(n: number) {
+    const cur = this.stringFacets?.minLength ?? 0;
+    const next = Math.max(cur, Math.max(0, Math.floor(n || 0)));
+    const f = { ...this.sfDraft, minLength: next };
+    // se length existir, mantenha coerência
+    if (f.length !== undefined) f.length = Math.max(f.length, next);
+    this.edits.setStringFacets(this.node.id, f);
+  }
+  setMaxLen(n: number) {
+    const cur = this.stringFacets?.maxLength ?? Infinity;
+    const next = Math.min(cur, Math.max(1, Math.floor(n || 1)));
+    const f = { ...this.sfDraft, maxLength: next };
+    if (f.length !== undefined) f.length = Math.min(f.length, next);
+    // se min > max, force min = max
+    if (f.minLength !== undefined && f.minLength > next) f.minLength = next;
+    this.edits.setStringFacets(this.node.id, f);
+  }
+  setLen(n: number) {
+    const curLen = this.stringFacets?.length;
+    const curMin = this.stringFacets?.minLength ?? 0;
+    const curMax = this.stringFacets?.maxLength ?? Infinity;
+    const next = Math.max(curLen ?? 0, Math.max(curMin, Math.min(curMax, Math.floor(n || 0))));
+    const f = { ...this.sfDraft, length: next, minLength: next, maxLength: Math.min(curMax, next) };
+    this.edits.setStringFacets(this.node.id, f);
+  }
+  setPattern(p: string) {
+    const list = (this.sfDraft.patterns ?? []).slice(0, 1); // MVP: 1 pattern
+    list[0] = p;
+    this.edits.setStringFacets(this.node.id, { ...this.sfDraft, patterns: list });
   }
 
   // Occurs helpers
@@ -72,7 +144,7 @@ export class SchemaNode {
     }
     this.edits.setOccurs(this.node.id, this.occMin, use);
   }
-  
+
   toggleUnbounded(checked: boolean) {
     this.setOccMax(checked ? 'unbounded' : Math.max(this.occMin, 50));
   }
@@ -94,4 +166,15 @@ export class SchemaNode {
 
   trackById = (_: number, n: ViewNode) => n.id;
   trackStr  = (_: number, s: string) => s;
+
+
+  private readonly FACET_KINDS = new Set(['length','minLength','maxLength','pattern']);
+
+  filteredChildren() {
+    const kids = this.node.children ?? [];
+    if (!this.showStringEditor) return kids;
+    return kids.filter(k => !this.FACET_KINDS.has(k.kind));
+  }
 }
+
+

@@ -96,11 +96,13 @@ export class EventoDetailComponent {
 
     const occ = this.mut.applyOccursEdits(rem.eventoXml, rem.tiposXml, this.edits.snapshotOccurs());
 
-    this.reportLines = [...rem.report, ...occ.report];
+    const str = this.mut.applyStringFacets(occ.eventoXml, occ.tiposXml, this.edits.snapshotStringFacets());
+
+    this.reportLines = [...rem.report, ...occ.report, ...str.report] ;
     this.previewEvento = occ.eventoXml;
     this.previewTipos = occ.tiposXml;
     this.showConfirm = true;
-    this.applyDisabled = (rem.changes + occ.changes) === 0;
+    this.applyDisabled = (rem.changes + occ.changes + str.changes) === 0;
   }
 
   confirmApply() {
