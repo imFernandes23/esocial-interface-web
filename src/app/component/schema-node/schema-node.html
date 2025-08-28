@@ -17,6 +17,36 @@
       </div>
     </ng-container>
 
+    <div class="occurs" *ngIf="showOccursEditor">
+      <div class="occ-row">
+        <div class="occ-item" *ngIf="occurs?.min === 0 || occMin === 0">
+          <label>Mínimo</label>
+          <input type="number" min="0" [max]="occMax === 'unbounded' ? null : occMax"
+                [value]="occMin" (input)="setOccMin(($event.target ).valueAsNumber)" />
+        </div>
+
+        <div class="occ-item">
+          <label>Máximo</label>
+          <ng-container *ngIf="occMax !== 'unbounded'; else unbounded">
+            <input type="number" min="1" [value]="occMax"
+                  (input)="setOccMax(($event.target).valueAsNumber)" />
+          </ng-container>
+          <ng-template #unbounded>
+            <input type="number" [value]="50" (input)="setOccMax(($event.target ).valueAsNumber)" />
+          </ng-template>
+          <label class="chk">
+            <input type="checkbox" [checked]="occMax === 'unbounded'" (change)="toggleUnbounded(($event.target).checked)" />
+            ilimitado
+          </label>
+        </div>
+
+        <div class="occ-hint">
+          <span>Atual: {{ occurs?.min ?? 1 }}..{{ occurs?.max === 'unbounded' ? '∞' : occurs?.max ?? 1 }}</span>
+          <span *ngIf="occMin !== (occurs?.min ?? 1) || occMax !== (occurs?.max ?? 1)">→ Novo: {{ occMin }}..{{ occMax === 'unbounded' ? '∞' : occMax }}</span>
+        </div>
+      </div>
+    </div>
+
     
     <!-- ↓↓↓ enum como LISTA (sem caixas/toggle) ↓↓↓ -->
     <ng-container *ngIf="node.kind === 'enumeration'; else normalChildren">

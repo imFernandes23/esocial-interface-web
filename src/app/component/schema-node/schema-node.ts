@@ -22,6 +22,28 @@ export class SchemaNode {
     this.open = !this.open;
   }
 
+  get occurs(): { min: number; max: number|'unbounded'} | null {
+    return (this.node.meta?.occurs ?? this.node.source?.meta?.occurs) ?? null;
+  }
+
+  get showOccursEditor(): boolean {
+    const oc = this.occurs;
+    if (!oc) return false;
+    const min = oc.min ?? 1;
+    const max = oc.max ?? 1;
+
+    return !(min === 1 && max === 1);
+  }
+
+  get occMin(): number {
+    const v = this.edits.getOccursMin(this.node.id);
+    return v ?? (this.occurs?.min ?? 1);
+  }
+  get occMax(): number | 'unbounded' {
+    const v = this.edits.getOccursMax(this.node.id);
+    return v ?? (this.occurs?.max ?? 1);
+  }
+
   get typeName(): string | undefined {
     return this.node?.meta?.typeName ?? this.node?.source?.meta?.typeName;
   }
@@ -33,6 +55,26 @@ export class SchemaNode {
   }
   get docs(): string[] {
     return this.node?.meta?.docs ?? this.node?.source?.meta?.docs ?? [];
+  }
+
+  // Occurs helpers
+  setOccMin(n: number) {
+    const max = this.occMax === 'unbounded' ? Infinity : (this.occMax as number);
+    const clamped = Math.max(0, Math.min(n, max));
+    this.edits.setOccurs(this.node.id, clamped, this.occMax);
+  }
+  setOccMax(n: number|'unbounded') {
+    const min = this.occMin;
+    let use = n;
+    if (n !== 'unbounded') {
+      const num = Math.max(min, Number(n || 0));
+      use = num < 1 ? 1 : num; // nunca 0 quando é máximo
+    }
+    this.edits.setOccurs(this.node.id, this.occMin, use);
+  }
+  
+  toggleUnbounded(checked: boolean) {
+    this.setOccMax(checked ? 'unbounded' : Math.max(this.occMin, 50));
   }
 
   // enum Helpers

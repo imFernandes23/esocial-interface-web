@@ -92,12 +92,15 @@ export class EventoDetailComponent {
     const tiposKey = Object.keys(files).find(k => /^tipos.*\.xsd$/i.test(k)) || 'tipos.xsd';
     const tiposXml  = files[tiposKey] || '';
 
-    const res = this.mut.applyEnumRemovals(eventoXml, tiposXml, this.edits.snapshot());
-    this.reportLines = res.report;
-    this.previewEvento = res.eventoXml;
-    this.previewTipos = res.tiposXml;
+    const rem = this.mut.applyEnumRemovals(eventoXml, tiposXml, this.edits.snapshot());
+
+    const occ = this.mut.applyOccursEdits(rem.eventoXml, rem.tiposXml, this.edits.snapshotOccurs());
+
+    this.reportLines = [...rem.report, ...occ.report];
+    this.previewEvento = occ.eventoXml;
+    this.previewTipos = occ.tiposXml;
     this.showConfirm = true;
-    this.applyDisabled = res.changes === 0;
+    this.applyDisabled = (rem.changes + occ.changes) === 0;
   }
 
   confirmApply() {

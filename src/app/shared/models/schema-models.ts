@@ -8,6 +8,11 @@ export interface EsocialSchema {
 
 export type LoadSource = 'zip' | 'local';
 
+export interface OccursMeta {
+  min: number;
+  max: number | 'unbounded'
+}
+
 export interface TreeNode {
   id: string;
   name: string;      // o que exibimos na UI
@@ -18,6 +23,7 @@ export interface TreeNode {
     base?: string;
     use?: 'required'|'optional'|'prohibited'|string;
     docs?: string[];
+    occurs?: OccursMeta;
   }
 }
 
@@ -31,6 +37,7 @@ export interface ViewNode {
     typeName?: string;
     base?: string;
     use?: 'required'|'optional'|'prohibited'|string;
-    docs?: string[]
+    docs?: string[];
+    occurs?: OccursMeta;
   };
 }

@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { TreeNode, ViewNode } from '../shared/models/schema-models';
+import { OccursMeta, TreeNode, ViewNode } from '../shared/models/schema-models';
 
 const XS = 'http://www.w3.org/2001/XMLSchema';
 
@@ -106,7 +106,17 @@ export class SchemaTreeService {
   private buildElementNode(el: Element, idx: Indexes, id: string, visited: Set<string>): TreeNode {
   const name = getName(el) || '(element)';
   const children: TreeNode[] = [];
-  const meta: { base?: string; typeName?: string; docs?: string[]} = {};
+  const meta: { base?: string; typeName?: string; docs?: string[]; occurs?: OccursMeta } = {};
+  const minAttr = el.getAttribute('minOccurs');
+  const maxAttr = el.getAttribute('maxOccurs');
+
+  // capturar ocorrencias
+  if (minAttr || maxAttr) {
+    meta.occurs = {
+      min: minAttr ? Number(minAttr) : 1,
+      max: maxAttr === 'unbounded' ? 'unbounded' : (maxAttr ? Number(maxAttr) : 1),
+    }
+  }
 
   // docs do próprio <xs:element>
 
@@ -401,11 +411,6 @@ private buildSimpleTypeNode(st: Element, id: string, idx: Indexes, visited = new
     }
     return view;
   }
-
-function readSimpleTypeBase(st: Element): string | undefined {
-  const restr = firstChildNS(st, 'restriction');
-  return restr?.getAttribute('base') || undefined;
-}
 
 function parseXml(text: string): Document {
   const doc = new DOMParser().parseFromString(text, 'application/xml');

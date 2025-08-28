@@ -131,4 +131,40 @@ export class XsdMutationService {
     }
     return null;
   }
+
+  applyOccursEdits(eventoXml: string, tiposXml: string, occurs: Array<[string,{min:number;max:number|'unbounded'}]>) {
+    const parse = (xml: string) => new DOMParser().parseFromString(xml, 'application/xml');
+    const serialize = (doc: Document) => new XMLSerializer().serializeToString(doc);
+    const XS = 'http://www.w3.org/2001/XMLSchema';
+
+    const eventoDoc = parse(eventoXml);
+    const tiposDoc  = parse(tiposXml);
+    const report: string[] = [];
+    let changes = 0;
+
+    const setOccursOnElement = (doc: Document, name: string, min: number, max: number|'unbounded'): boolean => {
+      const el = Array.from(doc.getElementsByTagNameNS(XS, 'element')).find(e => e.getAttribute('name') === name);
+      if (!el) return false;
+      if (min === 1) el.removeAttribute('minOccurs'); else el.setAttribute('minOccurs', String(min));
+      if (max === 1) el.removeAttribute('maxOccurs'); else el.setAttribute('maxOccurs', max === 'unbounded' ? 'unbounded' : String(max));
+      return true;
+    };
+
+    for (const [contextId, {min, max}] of occurs) {
+      // pegue o último /el:<Name> do id
+      const m = contextId.match(/\/el:([A-Za-z_][\w.-]*)/g);
+      const last = m ? m[m.length - 1] : null;
+      const elName = last ? last.replace('/el:', '') : undefined;
+      if (!elName) { report.push(`⚠️ Sem el:<name> no contexto ${contextId}`); continue; }
+
+      // tente no evento primeiro
+      let ok = setOccursOnElement(eventoDoc, elName, min, max);
+      if (!ok) ok = setOccursOnElement(tiposDoc, elName, min, max); // fallback
+
+      if (ok) { changes++; report.push(`Ocorrência de <${elName}> → ${min}..${max === 'unbounded' ? '∞' : max}.`); }
+      else    { report.push(`⚠️ <${elName}> não encontrado p/ aplicar ocorrência.`); }
+    }
+
+    return { eventoXml: serialize(eventoDoc), tiposXml: serialize(tiposDoc), changes, report };
+  }
 }
