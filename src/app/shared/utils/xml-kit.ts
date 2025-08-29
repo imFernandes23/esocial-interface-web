@@ -1,116 +1,70 @@
-const XS = "http://www.w3.org/2001/XMLSchema";
+export const XS = 'http://www.w3.org/2001/XMLSchema';
 
-/** Pegar root do documento <xs:schema> (root) com segurança */
-function getSchemaRoot(doc: Document): Element {
-  const byNs = doc.getElementsByTagNameNS(XS, "schema")?.[0];
-  if (byNs) return byNs;
-  if(doc.documentElement?.localName === "schema") return doc.documentElement;
-  throw new Error("Root <schema> não encontrado")
-}
-
-/** Extrai valor de atributo do root com fallback de string vazia */
-function attr(el: Element, name: string): string | undefined {
-  return el.hasAttribute(name) ? el.getAttribute(name)! : undefined;
-}
-
-/** Converte NamedNodeMap de atributos em objeto simples */
-function attributesToObject(el: Element): Record<string, string> {
-  return Object.fromEntries(Array.from(el.attributes, a => [a.name, a.value]));
-}
-
-/** Helper para listar filhos imediatos por localName dentro do nameespace XSD */
-function childrenByLocalName(parent: Element, local: string): Element[] {
-  return Array.from(parent.children)
-    .filter(ch => ch.namespaceURI === XS && ch.localName === local);
-}
-
-/** Extrai xs:annotation/xs:documentation (texto concatenado) de um nó */
-function getDocumentation(el: Element): string | undefined {
-  const ann = Array.from(el.children).find(c => c.namespaceURI === XS && c.localName === "annotation")
-  if(!ann) return undefined;
-  const docs = Array.from(ann.children).filter(c => c.namespaceURI === XS && c.localName === "documentation");
-  const text = docs.map(d => d.textContent?.trim() ?? "").filter(Boolean).join("\n");
-  return text || undefined;
-}
-
-/** Representações simples */
-export interface XsdSchemaInfo {
-  tagName: string;                     // ex.: 'xs:schema'
-  attributes: Record<string,string>;   // todos atributos do root
-  targetNamespace?: string;
-  elementFormDefault?: string;
-  attributeFormDefault?: string;
-  version?: string;
-  namespaces: Record<string,string>;   // prefixo -> URI (xmlns:*)
-  includes: { schemaLocation?: string }[];
-  imports:  { namespace?: string; schemaLocation?: string }[];
-  redefines:{ schemaLocation?: string }[];
-  simpleTypes: { name?: string; base?: string; documentation?: string }[];
-  complexTypes:{ name?: string; documentation?: string }[];
-  elements:   { name?: string; type?: string; ref?: string; minOccurs?: string; maxOccurs?: string; documentation?: string }[];
-}
-
-/** Extrai informações do root <schema> e filhos imediatos */
-export function extractSchemaInfo(doc: Document): XsdSchemaInfo {
-  const root = getSchemaRoot(doc);
-
-  // Atributos e namespaces (xmlns, xmlns:xs, etc.)
-  const attributes = attributesToObject(root);
-  const namespaces: Record<string,string> = {};
-  for (const [k,v] of Object.entries(attributes)) {
-    if (k === "xmlns" || k.startsWith("xmlns:")) {
-      const prefix = k === "xmlns" ? "" : k.substring("xmlns:".length);
-      namespaces[prefix] = v;
+/** Encontra o <xs:restriction> de um simpleType (global "st:TS_*" ou inline "st:inline"). */
+export function findSimpleTypeRestriction(doc: Document, ctxId: string): Element | null {
+  // global: .../st:TS_nome
+  const stMatch = ctxId.match(/\/st:([A-Za-z_][\w.-]*)/g);
+  const stName  = stMatch ? stMatch[stMatch.length - 1].replace('/st:', '') : undefined;
+  if (stName) {
+    const st = Array.from(doc.getElementsByTagNameNS(XS, 'simpleType'))
+      .find(e => e.getAttribute('name') === stName);
+    if (st) {
+      return Array.from(st.children)
+        .find(c => c.namespaceURI === XS && c.localName === 'restriction') as Element || null;
     }
   }
+  // inline: .../st:inline (último el:<Nome> acima)
+  if (/\/st:inline/.test(ctxId)) {
+    const elMatch = ctxId.match(/\/el:([A-Za-z_][\w.-]*)/g);
+    const elName  = elMatch ? elMatch[elMatch.length - 1].replace('/el:', '') : undefined;
+    if (elName) {
+      const el = Array.from(doc.getElementsByTagNameNS(XS, 'element'))
+        .find(e => e.getAttribute('name') === elName);
+      if (el) {
+        const st = Array.from(el.children)
+          .find(c => c.namespaceURI === XS && c.localName === 'simpleType') as Element;
+        if (st) {
+          return Array.from(st.children)
+            .find(c => c.namespaceURI === XS && c.localName === 'restriction') as Element || null;
+        }
+      }
+    }
+  }
+  return null;
+}
 
-  // includes/imports/redefines
-  const includes  = childrenByLocalName(root, "include" ).map(el => ({ schemaLocation: attr(el,"schemaLocation") }));
-  const imports   = childrenByLocalName(root, "import"  ).map(el => ({ namespace: attr(el,"namespace"), schemaLocation: attr(el,"schemaLocation") }));
-  const redefines = childrenByLocalName(root, "redefine").map(el => ({ schemaLocation: attr(el,"schemaLocation") }));
+/** Heurística: menor/maior número do nome do tipo TS_* (ex.: TS_val_0_999 => {min:0,max:999}). */
+export function inferMinMaxFromTypeName(typeName?: string | null):
+  { min?: number; max?: number } | undefined {
+  if (!typeName) return;
+  const nums = (typeName.match(/\d+/g) || []).map(n => Number(n)).filter(n => Number.isFinite(n));
+  if (!nums.length) return;
+  return { min: Math.min(...nums), max: Math.max(...nums) };
+}
 
-  // simpleTypes (só nível global)
-  const simpleTypes = childrenByLocalName(root, "simpleType").map(st => {
-    const restriction = Array.from(st.children).find(c => c.namespaceURI === XS && c.localName === "restriction") as Element | undefined;
-    const base = restriction?.getAttribute("base") ?? undefined;
-    return {
-      name: attr(st,"name"),
-      base,
-      documentation: getDocumentation(st),
-    };
-  });
-
-  // complexTypes (global)
-  const complexTypes = childrenByLocalName(root, "complexType").map(ct => ({
-    name: attr(ct,"name"),
-    documentation: getDocumentation(ct),
-  }));
-
-  // elements (globais)
-  const elements = childrenByLocalName(root, "element").map(el => ({
-    name: attr(el,"name"),
-    type: attr(el,"type"),
-    ref: attr(el,"ref"),
-    minOccurs: attr(el,"minOccurs"),
-    maxOccurs: attr(el,"maxOccurs"),
-    documentation: getDocumentation(el),
-  }));
-
-  return {
-    tagName: root.tagName, // costuma ser 'xs:schema'
-    attributes,
-    targetNamespace: attr(root,"targetNamespace"),
-    elementFormDefault: attr(root,"elementFormDefault"),
-    attributeFormDefault: attr(root,"attributeFormDefault"),
-    version: attr(root,"version"),
-    namespaces,
-    includes,
-    imports,
-    redefines,
-    simpleTypes,
-    complexTypes,
-    elements,
-  };
+/** Coleta facets numéricos de um <xs:restriction> (para árvore e/ou mutations). */
+export function collectNumericFacets(restr: Element) {
+  const f: {
+    minInclusive?: number; maxInclusive?: number;
+    minExclusive?: number; maxExclusive?: number;
+    totalDigits?: number; fractionDigits?: number;
+    pattern?: string; enums?: string[];
+  } = {};
+  for (const c of Array.from(restr.children)) {
+    if (c.namespaceURI !== XS) continue;
+    const e = c as Element; const v = e.getAttribute('value') ?? '';
+    switch (e.localName) {
+      case 'minInclusive': f.minInclusive = Number(v); break;
+      case 'maxInclusive': f.maxInclusive = Number(v); break;
+      case 'minExclusive': f.minExclusive = Number(v); break;
+      case 'maxExclusive': f.maxExclusive = Number(v); break;
+      case 'totalDigits' : f.totalDigits  = Number(v); break;
+      case 'fractionDigits': f.fractionDigits = Number(v); break;
+      case 'pattern'     : f.pattern = v; break;
+      case 'enumeration' : (f.enums ??= []).push(v); break;
+    }
+  }
+  return f;
 }
 
 export function inferMaxFromTypeName(typeName?: string | null): number | undefined {
@@ -121,3 +75,38 @@ export function inferMaxFromTypeName(typeName?: string | null): number | undefin
   const n = Number(m[1]);
   return Number.isFinite(n) ? n : undefined;
 }
+
+export function inferMinMaxFromPatterns(patterns?: string[] | string):
+  { min?: number; max?: number } | undefined {
+
+  const pats = !patterns ? [] : Array.isArray(patterns) ? patterns : [patterns];
+  if (!pats.length) return;
+
+  // extrai todos quantificadores de dígitos: \d{n}  |  \d{a,b}
+  // também considera alternativas com |  (ex.: ^\d{2}|\d{3}$)
+  const quantRe = /\\d\{(\d+)(?:,(\d+))?\}/g;
+
+  let minDigits: number | undefined;
+  let maxDigits: number | undefined;
+
+  for (const p of pats) {
+    let m: RegExpExecArray | null;
+    while ((m = quantRe.exec(p)) !== null) {
+      const a = Number(m[1]);
+      const b = m[2] !== undefined ? Number(m[2]) : a;
+      minDigits = minDigits === undefined ? a : Math.min(minDigits, a);
+      maxDigits = maxDigits === undefined ? b : Math.max(maxDigits, b);
+    }
+  }
+
+  if (minDigits === undefined && maxDigits === undefined) return;
+
+  // Heurística conservadora:
+  // - se permite pelo menos 1 dígito → mínimo 0 (aceita "0")
+  // - máximo: 10^maxDigits - 1
+  const min = (minDigits ?? 1) >= 1 ? 0 : 0;
+  const max = maxDigits !== undefined ? Math.pow(10, maxDigits) - 1 : undefined;
+
+  return { min, max };
+}
+

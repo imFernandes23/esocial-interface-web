@@ -1,6 +1,13 @@
 import { Injectable } from '@angular/core';
 import { StringFacets } from '../shared/models/schema-models';
 
+export type NumericEdit = {
+  minInclusive?: number; maxInclusive?: number;
+  minExclusive?: number; maxExclusive?: number;
+  totalDigits?: number; fractionDigits?: number;
+  pattern?: string;
+};
+
 @Injectable({
   providedIn: 'root',
 })
@@ -56,15 +63,9 @@ export class EditBufferService {
 
   /// Editar String Facets
 
-  private stringEdits = new Map<
-    string,
-    StringFacets
-  >();
+  private stringEdits = new Map<string, StringFacets>();
 
-  setStringFacets(
-    ctxId: string,
-    f: StringFacets
-  ) {
+  setStringFacets(ctxId: string, f: StringFacets) {
     this.stringEdits.set(ctxId, { ...f });
   }
   getStringFacets(ctxId: string) {
@@ -76,4 +77,14 @@ export class EditBufferService {
   clearStringFacets() {
     this.stringEdits.clear();
   }
+
+  //// Editar Numeric facets
+  private numericEdits = new Map<string, NumericEdit>();
+
+  setNumericFacets(ctxId: string, f: NumericEdit) {
+    this.numericEdits.set(ctxId, { ...f });
+  }
+  getNumericFacets(ctxId: string) { return this.numericEdits.get(ctxId); }
+  snapshotNumericFacets() { return Array.from(this.numericEdits.entries()); }
+  clearNumericFacets(){ this.numericEdits.clear(); }
 }

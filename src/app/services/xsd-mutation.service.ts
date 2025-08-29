@@ -1,4 +1,5 @@
 import { Injectable } from '@angular/core';
+import { findSimpleTypeRestriction, XS } from '../shared/utils/xml-kit';
 
 type ApplyResult = {
   eventoXml: string;
@@ -248,6 +249,65 @@ export class XsdMutationService {
       changes++;
       const to = f.length ?? `${f.minLength ?? '∅'}..${f.maxLength ?? '∞'}`;
       report.push(`Facets de string atualizados (${ctxId}) → ${to}${f.patterns?.[0] ? `, pattern: ${f.patterns[0]}` : ''}`);
+    }
+
+    return { eventoXml: serialize(eventoDoc), tiposXml: serialize(tiposDoc), changes, report };
+  }
+
+  applyNumericFacets(
+    eventoXml: string,
+    tiposXml: string,
+    edits: Array<[string, {
+      minInclusive?: number; maxInclusive?: number;
+      minExclusive?: number; maxExclusive?: number;
+      totalDigits?: number; fractionDigits?: number;
+      pattern?: string;
+    }]>
+  ) {
+    const parse = (xml: string) => new DOMParser().parseFromString(xml, 'application/xml');
+    const serialize = (doc: Document) => new XMLSerializer().serializeToString(doc);
+    const eventoDoc = parse(eventoXml);
+    const tiposDoc  = parse(tiposXml);
+
+    const setFacet = (restr: Element, local: string, value?: number | string) => {
+      // remove existentes (mesmo facet) diretamente sob restriction
+      Array.from(restr.getElementsByTagNameNS(XS, local))
+        .filter(n => n.parentNode === restr)
+        .forEach(n => n.parentNode!.removeChild(n));
+      if (value === undefined || value === null || value === '') return;
+      const el = restr.ownerDocument!.createElementNS(XS, `xs:${local}`);
+      el.setAttribute('value', String(value));
+      restr.appendChild(el);
+    };
+
+    let changes = 0;
+    const report: string[] = [];
+
+    for (const [ctxId, f] of edits) {
+      let restr = findSimpleTypeRestriction(tiposDoc, ctxId) || findSimpleTypeRestriction(eventoDoc, ctxId);
+      if (!restr) { report.push(`⚠️ Restriction não encontrada para ${ctxId}`); continue; }
+
+      // conflitos: inclusive vs exclusive → manter apenas o que veio na edição
+      if (f.minInclusive !== undefined) delete f.minExclusive;
+      if (f.maxInclusive !== undefined) delete f.maxExclusive;
+      if (f.minExclusive !== undefined) delete f.minInclusive;
+      if (f.maxExclusive !== undefined) delete f.maxInclusive;
+
+      setFacet(restr, 'minInclusive', f.minInclusive);
+      setFacet(restr, 'maxInclusive', f.maxInclusive);
+      setFacet(restr, 'minExclusive', f.minExclusive);
+      setFacet(restr, 'maxExclusive', f.maxExclusive);
+      setFacet(restr, 'totalDigits',  f.totalDigits);
+      setFacet(restr, 'fractionDigits', f.fractionDigits);
+      setFacet(restr, 'pattern', f.pattern);
+
+      changes++;
+      const min = f.minInclusive ?? (f.minExclusive !== undefined ? `>${f.minExclusive}` : '∅');
+      const max = f.maxInclusive ?? (f.maxExclusive !== undefined ? `<${f.maxExclusive}` : '∅');
+      report.push(`Facets numéricos (${ctxId}) → min:${min} max:${max}`
+        + (f.totalDigits ? `, totalDigits:${f.totalDigits}` : '')
+        + (f.fractionDigits !== undefined ? `, fractionDigits:${f.fractionDigits}` : '')
+        + (f.pattern ? `, pattern` : ''));
     }
 
     return { eventoXml: serialize(eventoDoc), tiposXml: serialize(tiposDoc), changes, report };

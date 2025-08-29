@@ -49,6 +49,67 @@
       </div>
     </div>
 
+    <!-- FORM de Numeric Facet -->
+
+    <div class="num-box" *ngIf="showNumericEditor">
+      <div class="sf-row" *ngIf="showMinInclusive">
+        <label class="lbl">Mínimo (inclusive)</label>
+        <input type="number"
+              [value]="nfDraft.minInclusive ?? numericFacets?.minInclusive ?? inferredNum?.min ?? ''"
+              (input)="setMinInclusive(($event.target ).valueAsNumber)">
+        <span class="hint" *ngIf="numericFacets?.minInclusive === undefined && inferredNum?.min !== undefined">
+          sugerido: {{ inferredNum?.min }}
+        </span>
+      </div>
+
+      <div class="sf-row" *ngIf="showMinExclusive">
+        <label class="lbl">Mínimo (exclusive)</label>
+        <input type="number"
+              [value]="nfDraft.minExclusive ?? numericFacets?.minExclusive ?? ''"
+              (input)="setMinExclusive(($event.target ).valueAsNumber)">
+      </div>
+
+      <div class="sf-row" *ngIf="showMaxInclusive">
+        <label class="lbl">Máximo (inclusive)</label>
+        <input type="number"
+              [value]="nfDraft.maxInclusive ?? numericFacets?.maxInclusive ?? inferredNum?.max ?? ''"
+              (input)="setMaxInclusive(($event.target ).valueAsNumber)">
+        <span class="hint" *ngIf="numericFacets?.maxInclusive === undefined && inferredNum?.max !== undefined">
+          sugerido: {{ inferredNum?.max }}
+        </span>
+      </div>
+
+      <div class="sf-row" *ngIf="showMaxExclusive">
+        <label class="lbl">Máximo (exclusive)</label>
+        <input type="number"
+              [value]="nfDraft.maxExclusive ?? numericFacets?.maxExclusive ?? ''"
+              (input)="setMaxExclusive(($event.target ).valueAsNumber)">
+      </div>
+
+      <div class="sf-row" *ngIf="showTotalDigits">
+        <label class="lbl">totalDigits</label>
+        <input type="number" min="1"
+              [value]="nfDraft.totalDigits ?? numericFacets?.totalDigits ?? ''"
+              (input)="setTotalDigits(($event.target ).valueAsNumber)">
+      </div>
+
+      <div class="sf-row" *ngIf="showFractionDigits">
+        <label class="lbl">fractionDigits</label>
+        <input type="number" min="0"
+              [value]="nfDraft.fractionDigits ?? numericFacets?.fractionDigits ?? ''"
+              (input)="setFractionDigits(($event.target ).valueAsNumber)">
+        <span class="hint">para decimais (xs:decimal)</span>
+      </div>
+
+      <div class="sf-row" *ngIf="showNumPattern">
+        <label class="lbl">Pattern (regex)</label>
+        <input type="text"
+              [value]="nfDraft.pattern ?? numericFacets?.pattern ?? ''"
+              (input)="setNumPattern(($event.target ).value)">
+      </div>
+    </div>
+
+
     <!-- FORM de string facets -->
     <div class="sf-box" *ngIf="showStringEditor">
       <div class="sf-row">
@@ -118,7 +179,6 @@
         </app-schema-node>
       </ng-container>
       <ng-template #leaf>
-        <p class="muted">— sem filhos —</p>
       </ng-template>
     </ng-template>
   </div>

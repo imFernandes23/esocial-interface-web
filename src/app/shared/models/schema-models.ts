@@ -20,6 +20,13 @@ export interface StringFacets {
   patterns?: string[]
 }
 
+export interface NumericFacets {
+  minInclusive?: number; maxInclusive?: number;
+  minExclusive?: number; maxExclusive?: number;
+  totalDigits?: number; fractionDigits?: number;
+  pattern?: string; enums?: string [];
+}
+
 export interface TreeNode {
   id: string;
   name: string;      // o que exibimos na UI
@@ -31,7 +38,9 @@ export interface TreeNode {
     use?: 'required'|'optional'|'prohibited'|string;
     docs?: string[];
     occurs?: OccursMeta;
-    stringFacets?: StringFacets
+    stringFacets?: StringFacets;
+    numericFacets?: NumericFacets;
+    inferredNum?: {maxLengthFromName?: number; min?: number; max?: number};
   }
 }
 
@@ -48,5 +57,7 @@ export interface ViewNode {
     docs?: string[];
     occurs?: OccursMeta;
     stringFacets?: StringFacets;
+    numericFacets?: NumericFacets;
+    inferredNum?: {maxLengthFromName?: number; min?: number; max?: number};
   };
 }

@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { OccursMeta, TreeNode, ViewNode } from '../shared/models/schema-models';
-import { inferMaxFromTypeName } from '../shared/utils/xml-kit';
+import { collectNumericFacets, inferMaxFromTypeName, inferMinMaxFromPatterns, inferMinMaxFromTypeName } from '../shared/utils/xml-kit';
 
 const XS = 'http://www.w3.org/2001/XMLSchema';
 
@@ -307,6 +307,21 @@ private buildSimpleTypeNode(st: Element, id: string, idx: Indexes, visited = new
   if (restr) {
     base = restr.getAttribute('base') || undefined;
     meta.base = base;
+
+    const isNumericBase = !!base?.toLowerCase().match(/^xs:(byte|short|int|integer|long|nonnegativeinteger|nonpositiveinteger|positiveinteger|negativeinteger|unsignedByte|unsignedShort|unsignedInt|unsignedLong|decimal)$/);
+    if (isNumericBase) {
+      const nf = collectNumericFacets(restr);
+      if (Object.keys(nf).length) meta.numericFacets = nf;
+      // inferir min/max do nome, se não existirem limites explícitos -> inferir pelos patterns
+      const hasExplicitMin = nf.minInclusive !== undefined || nf.minExclusive !== undefined;
+      const hasExplicitMax = nf.maxInclusive !== undefined || nf.maxExclusive !== undefined;
+      if ((!hasExplicitMin || !hasExplicitMax) && (nf.pattern || (nf.enums?.length))) {
+        const inferred = inferMinMaxFromPatterns(nf.pattern ? [nf.pattern] : undefined);
+        if (inferred) (meta as any).inferred = { ...((meta as any).inferred||{}), ...inferred };
+      }
+      if (nf.enums?.length) (meta as any).hasNumericEnums = true;
+    }
+
   if (base && base.toLowerCase().endsWith(':string')) {
     const f = collectStringFacets(restr);       
     if (f.length || f.minLength || f.maxLength || (f.patterns?.length)) {
@@ -418,7 +433,6 @@ type StringFacets = {
         }
       }
     }
-    console.log(out)
     return out;
   }
 

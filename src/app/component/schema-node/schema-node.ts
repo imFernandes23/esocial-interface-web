@@ -22,6 +22,49 @@ export class SchemaNode {
     this.open = !this.open;
   }
 
+
+  //// Getter numerics
+
+  get isNumericSimpleType(): boolean {
+    const base = (this.base || '').toLowerCase();
+    const isSimple = this.node.kind === 'simpleType' || this.node.source?.kind === 'simpleType';
+    const numeric = /^xs:(byte|short|int|integer|long|nonnegativeinteger|nonpositiveinteger|positiveinteger|negativeinteger|unsignedbyte|unsignedshort|unsignedint|unsignedlong|decimal)$/.test(base);
+    const hasEnums = !!((this.node.meta as any)?.numericFacets?.enums?.length
+                    || (this.node.source as any)?.numericFacets?.enums?.length);
+    return isSimple && numeric && !hasEnums;
+  }
+  get showNumericEditor(): boolean { return this.isNumericSimpleType; }
+
+  get numericFacets() {
+    return this.node.meta?.numericFacets ?? this.node.source?.meta?.numericFacets;
+  }
+  get inferredNum(): {min?: number; max?: number} | undefined {
+    return (this.node.meta as any)?.inferred ?? (this.node.source as any)?.inferred;
+  }
+
+  // flags por campo → só renderiza se houver valor OU (no caso de min/max) sugestão
+  get showMinInclusive(){ return this.numericFacets?.minInclusive !== undefined || this.inferredNum?.min !== undefined; }
+  get showMinExclusive(){ return this.numericFacets?.minExclusive !== undefined; }
+  get showMaxInclusive(){ return this.numericFacets?.maxInclusive !== undefined || this.inferredNum?.max !== undefined; }
+  get showMaxExclusive(){ return this.numericFacets?.maxExclusive !== undefined; }
+  get showTotalDigits(){ return this.numericFacets?.totalDigits !== undefined; }
+  get showFractionDigits(){ return this.numericFacets?.fractionDigits !== undefined; }
+  get showNumPattern(){ return this.numericFacets?.pattern !== undefined; }
+
+  get nfDraft() {
+    return this.edits.getNumericFacets(this.node.id) ?? { ...(this.numericFacets ?? {}) };
+  }
+
+  private readonly NUM_FACET_KINDS = new Set([
+  'minInclusive','maxInclusive','minExclusive','maxExclusive','totalDigits','fractionDigits','pattern'
+  ]);
+
+  filteredChildrenNum() {
+    const kids = this.node.children ?? [];
+    if (!this.showNumericEditor) return kids;
+    return kids.filter(k => !this.NUM_FACET_KINDS.has(k.kind));
+  }
+
   //// Getter de string facets
   get isStringType(): boolean {
     const base = this.base?.toLowerCase();
@@ -96,6 +139,59 @@ export class SchemaNode {
     return this.node?.meta?.use ?? this.node?.source?.meta?.use;
   }
 ///////////////////////// Funções manipuladoras /////////////////////////////////
+  // numeric Helpers
+  private clampMin(n?: number) {
+    const curInc = this.numericFacets?.minInclusive;
+    const curExc = this.numericFacets?.minExclusive;
+    if (curInc !== undefined && n !== undefined) n = Math.max(n, curInc);
+    if (curExc !== undefined && n !== undefined) n = Math.max(n, curExc + 1); // mais restrito que exclusivo atual
+    return n;
+  }
+  private clampMax(n?: number) {
+    const curInc = this.numericFacets?.maxInclusive;
+    const curExc = this.numericFacets?.maxExclusive;
+    if (curInc !== undefined && n !== undefined) n = Math.min(n, curInc);
+    if (curExc !== undefined && n !== undefined) n = Math.min(n, curExc - 1);
+    return n;
+  }
+
+  setMinInclusive(n: number) {
+    const v = this.clampMin(Number.isFinite(n) ? Math.floor(n) : undefined);
+    const f = { ...this.nfDraft, minInclusive: v };
+    delete f.minExclusive; // conflitantes
+    this.edits.setNumericFacets(this.node.id, f);
+  }
+  setMinExclusive(n: number) {
+    const v = this.clampMin(Number.isFinite(n) ? Math.floor(n) : undefined);
+    const f = { ...this.nfDraft, minExclusive: v };
+    delete f.minInclusive;
+    this.edits.setNumericFacets(this.node.id, f);
+  }
+  setMaxInclusive(n: number) {
+    const v = this.clampMax(Number.isFinite(n) ? Math.floor(n) : undefined);
+    const f = { ...this.nfDraft, maxInclusive: v };
+    delete f.maxExclusive;
+    this.edits.setNumericFacets(this.node.id, f);
+  }
+  setMaxExclusive(n: number) {
+    const v = this.clampMax(Number.isFinite(n) ? Math.floor(n) : undefined);
+    const f = { ...this.nfDraft, maxExclusive: v };
+    delete f.maxInclusive;
+    this.edits.setNumericFacets(this.node.id, f);
+  }
+  setTotalDigits(n: number) {
+    const f = { ...this.nfDraft, totalDigits: (Number.isFinite(n) && n>0) ? Math.floor(n) : undefined };
+    this.edits.setNumericFacets(this.node.id, f);
+  }
+  setFractionDigits(n: number) {
+    const f = { ...this.nfDraft, fractionDigits: (Number.isFinite(n) && n>=0) ? Math.floor(n) : undefined };
+    this.edits.setNumericFacets(this.node.id, f);
+  }
+  setNumPattern(p: string) {
+    const f = { ...this.nfDraft, pattern: p || undefined };
+    this.edits.setNumericFacets(this.node.id, f);
+  }
+
   // String Facets Helpers
 
   setMinLen(n: number) {
@@ -168,12 +264,20 @@ export class SchemaNode {
   trackStr  = (_: number, s: string) => s;
 
 
-  private readonly FACET_KINDS = new Set(['length','minLength','maxLength','pattern']);
+  private readonly STRING_FACET_KINDS = new Set(['length','minLength','maxLength','pattern']);
+  private readonly NUMERIC_FACET_KINDS = new Set([
+  'minInclusive','maxInclusive','minExclusive','maxExclusive','totalDigits','fractionDigits','pattern'
+]);
 
   filteredChildren() {
-    const kids = this.node.children ?? [];
-    if (!this.showStringEditor) return kids;
-    return kids.filter(k => !this.FACET_KINDS.has(k.kind));
+    let kids = this.node.children ?? [];
+    if (this.showStringEditor) {
+      kids = kids.filter(k => !this.STRING_FACET_KINDS.has(k.kind));
+    }
+    if (this.showNumericEditor) {
+      kids = kids.filter(k => !this.NUMERIC_FACET_KINDS.has(k.kind));
+    }
+  return kids;
   }
 }
 

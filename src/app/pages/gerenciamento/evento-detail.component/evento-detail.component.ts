@@ -98,7 +98,10 @@ export class EventoDetailComponent {
 
     const str = this.mut.applyStringFacets(occ.eventoXml, occ.tiposXml, this.edits.snapshotStringFacets());
 
-    this.reportLines = [...rem.report, ...occ.report, ...str.report] ;
+    const num = this.mut.applyNumericFacets(str.eventoXml, str.tiposXml, this.edits.snapshotNumericFacets());
+
+
+    this.reportLines = [...rem.report, ...occ.report, ...str.report, ...num.report] ;
     this.previewEvento = occ.eventoXml;
     this.previewTipos = occ.tiposXml;
     this.showConfirm = true;
