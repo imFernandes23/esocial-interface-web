@@ -110,3 +110,28 @@ export function inferMinMaxFromPatterns(patterns?: string[] | string):
   return { min, max };
 }
 
+export function inferStringLengthFromPatterns(patterns?: string[] | string):
+  { minLength?: number; maxLength?: number } | undefined {
+
+  const pats = !patterns ? [] : Array.isArray(patterns) ? patterns : [patterns];
+  if (!pats.length) return;
+
+  // suporta \d{11}, .{5,10}, [A-Z]{3}, etc
+  const quantRe = /[{]([0-9]+)(?:,([0-9]+))?[}]/g;
+
+  let minL: number | undefined;
+  let maxL: number | undefined;
+
+  for (const p of pats) {
+    let m: RegExpExecArray | null;
+    while ((m = quantRe.exec(p)) !== null) {
+      const a = Number(m[1]);
+      const b = m[2] !== undefined ? Number(m[2]) : a;
+      minL = minL === undefined ? a : Math.min(minL, a);
+      maxL = maxL === undefined ? b : Math.max(maxL, b);
+    }
+  }
+
+  if (minL === undefined && maxL === undefined) return;
+  return { minLength: minL, maxLength: maxL };
+}

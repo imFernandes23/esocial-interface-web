@@ -113,34 +113,24 @@
     <!-- FORM de string facets -->
     <div class="sf-box" *ngIf="showStringEditor">
       <div class="sf-row">
-        <label class="lbl">Comprimento exato</label>
-        <input type="number" min="1" [value]="sfDraft.length ?? ''" placeholder="opcional"
-              (input)="setLen(($event.target).valueAsNumber)">
-        <span class="hint" *ngIf="stringFacets?.length">mín {{stringFacets?.length}} (não pode diminuir)</span>
+        <label class="lbl">Mínimo</label>
+        <input type="number"
+              [value]="minLenForForm"
+              (input)="setMinLen(($event.target).valueAsNumber)">
+        <span class="hint" *ngIf="stringFacets?.minLength===undefined && inferredString?.minLength">
+          sugerido: {{ inferredString?.minLength }}
+        </span>
       </div>
 
       <div class="sf-row">
-        <label class="lbl">Mínimo</label>
-        <input type="number" min="0" [value]="sfDraft.minLength ?? stringFacets?.minLength ?? 0"
-              (input)="setMinLen(($event.target).valueAsNumber)">
-        <span class="hint" *ngIf="stringFacets?.minLength">mín {{stringFacets?.minLength}} (↑ apenas)</span>
+        <label class="lbl">Máximo</label>
+        <input type="number"
+              [value]="maxLenForForm"
+              (input)="setMaxLen(($event.target).valueAsNumber)">
+        <span class="hint" *ngIf="stringFacets?.maxLength===undefined && inferredString?.maxLength">
+          sugerido: {{ inferredString?.maxLength }}
+        </span>
       </div>
-
-    <div class="sf-row">
-      <label class="lbl">Máximo</label>
-      <input
-        type="number" min="1"
-        [value]="maxForForm"
-        placeholder="{{ inferredMax ? ('sugerido: ' + inferredMax) : 'opcional' }}"
-        (input)="setMaxLen(($event.target).valueAsNumber)" />
-      <span class="hint"
-            *ngIf="stringFacets?.maxLength; else hintInfer">
-        máx {{stringFacets?.maxLength}} (↓ apenas)
-      </span>
-      <ng-template #hintInfer>
-        <span class="hint" *ngIf="inferredMax">sugerido pelo nome do tipo</span>
-      </ng-template>
-    </div>
 
       <div class="sf-row">
         <label class="lbl">Pattern (regex)</label>

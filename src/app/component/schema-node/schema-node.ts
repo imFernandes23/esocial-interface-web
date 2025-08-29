@@ -66,6 +66,24 @@ export class SchemaNode {
   }
 
   //// Getter de string facets
+
+  get inferredString(): {minLength?: number; maxLength?: number} | undefined {
+    return (this.node.meta as any)?.inferred ?? (this.node.source as any)?.inferred;
+  }
+
+  get minLenForForm(): number | '' {
+    return this.edits.getStringFacets(this.node.id)?.minLength
+        ?? this.stringFacets?.minLength
+        ?? this.inferredString?.minLength
+        ?? '';
+  }
+  get maxLenForForm(): number | '' {
+    return this.edits.getStringFacets(this.node.id)?.maxLength
+        ?? this.stringFacets?.maxLength
+        ?? this.inferredString?.maxLength
+        ?? '';
+  }
+
   get isStringType(): boolean {
     const base = this.base?.toLowerCase();
     return !!(base && (base === 'xs:string' || base.endsWith(':string')));
