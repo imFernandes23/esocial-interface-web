@@ -1,0 +1,12 @@
+    <div class="wizard">
+      <h2>Gerar novo: {{ fileName }}</h2>
+
+      <div class="placeholder" *ngIf="!xml">
+        Arquivo não encontrado no conjunto mais recente ou XML vazio.
+      </div>
+
+      <div class="placeholder" *ngIf="xml">
+        (Próximos passos) Montar o formulário dinâmico a partir do XSD:
+        <pre style="white-space: pre-wrap">{{ xml.slice(0, 2000) }}</pre>
+      </div>
+    </div>

@@ -1,0 +1,10 @@
+.wizard {
+  display: grid;
+  gap: 12px;
+}
+.placeholder {
+  opacity: 0.8;
+  border: 1px dashed #444;
+  padding: 16px;
+  border-radius: 12px;
+}

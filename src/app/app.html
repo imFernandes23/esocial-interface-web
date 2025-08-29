@@ -1,7 +1,20 @@
-    <div class="topbar">
-      <a routerLink="/gerenciamento" routerLinkActive="active">Gerenciamento</a>
-      <a routerLink="/gestao" routerLinkActive="active">Gestão</a>
-    </div>
-    <div class="container">
-      <router-outlet></router-outlet>
-    </div>
+<div class="topbar">
+  <a
+    [routerLink]="'/gestao'"
+    routerLinkActive="active"
+    [routerLinkActiveOptions]="{ exact: true }"
+    ariaCurrentWhenActive="page"
+  >Gestão</a>
+
+  <a
+    [routerLink]="'/gerenciamento'"
+    routerLinkActive="active"
+    [routerLinkActiveOptions]="{ exact: true }"
+    ariaCurrentWhenActive="page"
+  >Gerenciamento</a>
+
+</div>
+
+<div class="container">
+  <router-outlet></router-outlet>
+</div>

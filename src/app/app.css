@@ -19,3 +19,6 @@
   max-width: 1200px;
   margin: 0 auto;
 }
+
+.topbar a { padding: 8px 12px; border-radius: 6px; text-decoration: none; }
+.topbar a.active { background: #eef2ff; color: #1e3a8a; font-weight: 600; }

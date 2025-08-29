@@ -1,3 +1,56 @@
-    <h2>Gestão</h2>
-    <p>Em breve: input de ID, lista de eventos da versão atual, gerar formulário caixa-aberta, salvar XML no navegador, visualizar com docs etc.</p>
- 
+<div class="gestao">
+  <header class="gestao-header">
+    <div class="left">
+      <button (click)="onFiltrar()" [class.active]="active() === 'filtrar'">Filtrar eventos</button>
+      <button (click)="onGerarNovo()" [class.active]="active() === 'novo'">Gerar novo</button>
+    </div>
+    <div class="right" *ngIf="active() === 'novo'">
+      <input
+        type="search"
+        placeholder="Buscar evento (ex.: S-1200 ou 'Remuneração')"
+        [value]="query()"
+        (input)="query.set(($any($event.target).value || '').trim())"
+      />
+    </div>
+  </header>
+
+  <section class="gestao-body">
+    <!-- Aba FILTRAR (placeholder para futura implementação) -->
+    <ng-container *ngIf="active() === 'filtrar'">
+      <div class="placeholder">
+        (Em breve) filtros por período, status, empresa, CPF/CNPJ, sistema, etc.
+      </div>
+    </ng-container>
+
+    <!-- Aba GERAR NOVO -->
+
+    <ng-container *ngIf="active() === 'novo'">
+    <ng-container *ngIf="catalog$ | async as catalog; else noCatalog">
+        <div class="catalog-meta">
+        <div><b>Conjunto:</b> {{ catalog.setId }}</div>
+        <div><b>Versão:</b> {{ catalog.version || '—' }}</div>
+        <div><b>Carregado em:</b> {{ catalog.uploadedAt | date:'short' }}</div>
+        </div>
+
+        <div class="event-grid">
+        <a
+            class="event-card"
+            *ngFor="let ev of filter(catalog.events, query())"
+            [routerLink]="['/gestao/novo', ev.fileName]"
+            [attr.aria-label]="'Criar ' + ev.id"
+        >
+            <div class="event-code">{{ ev.id || ev.fileName }}</div>
+            <div class="event-title">{{ ev.title }}</div>
+            <div class="event-file">Fonte: {{ ev.fileName }}</div>
+        </a>
+        </div>
+    </ng-container>
+
+    <ng-template #noCatalog>
+        <div class="placeholder">
+        Nenhum conjunto XSD carregado ainda. Vá em <b>Gerenciamento</b> → Upload XSD.
+        </div>
+    </ng-template>
+    </ng-container>
+  </section>
+</div>
