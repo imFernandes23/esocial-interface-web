@@ -28,44 +28,17 @@
   font-size: 13px;
 }
 
-.choice-picker {
+.choice-picker,
+.enum-picker {
   display: flex;
   align-items: center;
   gap: 8px;
   margin-top: 10px;
 }
-.choice-picker select {
+.choice-picker select,
+.enum-picker select {
   padding: 6px 8px;
   border-radius: 8px;
   border: 1px solid #c8c8cc;
   background: #fff;
-}
-
-.docbox {
-  margin-top: 10px;
-  padding: 10px 12px;
-  border: 1px solid #e5e7eb;
-  background: #fafafa;
-  border-radius: 10px;
-}
-.docbox-list {
-  margin: 0;
-  padding-left: 18px;
-  white-space: pre-wrap;
-  font-size: 13px;
-}
-
-.docbox {
-  background: #f8fafc;
-  border: 1px solid #eef2f7;
-  border-radius: 8px;
-  padding: 8px 10px;
-  margin-top: 10px;
-  margin-bottom: 10px;
-}
-.docline {
-  font-size: 13px;
-  color: #334155;
-  line-height: 1.35;
-  list-style-type: none;
 }

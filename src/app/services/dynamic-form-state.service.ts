@@ -18,6 +18,17 @@ export class DynamicFormStateService {
     this.choiceMap.set(rest);
   }
 
+  /** enum: nodeId (do bloco enumeration) -> valor (ex.: "01") */
+  private enumMap = signal<Record<string, string>>({});
+  getEnum(nodeId: string): string | undefined { return this.enumMap()[nodeId]; }
+  setEnum(nodeId: string, value: string) {
+    this.enumMap.update(m => ({ ...m, [nodeId]: value }));
+  }
+  clearEnum(nodeId: string) {
+    const { [nodeId]: _, ...rest } = this.enumMap();
+    this.enumMap.set(rest);
+  }
+
   /** Stubs p/ futuro: carregar de XML e gerar XML */
   loadFromXml(_xml: string) {/* TODO: parsear e popular choiceMap */}
   toXml(): string {/* TODO: serializar usando choiceMap */ return ''; }

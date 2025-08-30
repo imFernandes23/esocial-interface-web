@@ -10,13 +10,13 @@
     </ul>
   </div>
 
-  <!-- === CASO CHOICE: seletor e renderização condicional === -->
-  <ng-container *ngIf="isChoice(); else regularChildren">
+  <!-- ====== CHOICE ====== -->
+  <ng-container *ngIf="isChoice(); else notChoice">
     <div class="choice-picker">
       <label>Escolha uma opção:</label>
       <select
-        [value]="selectedId()"
-        (change)="onChoose(($any($event.target).value))">
+        [value]="selectedChoiceId()"
+        (change)="onChoose(($any($event.target).value ))">
         <option value="" disabled>— selecione —</option>
         <option *ngFor="let opt of node.children" [value]="opt.id">
           {{ opt.name || 'opção' }}
@@ -29,11 +29,29 @@
     </div>
   </ng-container>
 
-  <!-- === CASO NÃO-CHOICE: renderiza todos os filhos normalmente === -->
-  <ng-template #regularChildren>
-    <div class="children" *ngIf="node.children?.length">
-      <app-xs-tree-node *ngFor="let c of node.children" [node]="c"></app-xs-tree-node>
-    </div>
-  </ng-template>
+  <!-- ====== NÃO-CHOICE ====== -->
+  <ng-template #notChoice>
+    <!-- ENUM como SELECT -->
+    <ng-container *ngIf="isEnumList(); else regularChildren">
+      <div class="enum-picker">
+        <label>Selecionar:</label>
+        <select
+          [value]="selectedEnum()"
+          (change)="onChooseEnum(($any($event.target).value ))">
+          <option value="" disabled>— selecione —</option>
+          <option *ngFor="let opt of node.children" [value]="opt.name">
+            {{ enumLabel(opt) }}
+          </option>
+        </select>
+      </div>
+      <!-- não renderiza os filhos individualmente quando é enum list -->
+    </ng-container>
 
+    <!-- padrão: renderiza filhos normalmente -->
+    <ng-template #regularChildren>
+      <div class="children" *ngIf="node.children?.length">
+        <app-xs-tree-node *ngFor="let c of node.children" [node]="c"></app-xs-tree-node>
+      </div>
+    </ng-template>
+  </ng-template>
 </details>
