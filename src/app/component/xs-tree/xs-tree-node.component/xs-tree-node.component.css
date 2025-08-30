@@ -4,15 +4,17 @@
   padding: 8px 12px;
   background: #fff;
 }
+:host {
+  display: block;
+  margin-top: 12px;   /* espaço entre irmãos */
+}
+
 .sum {
   cursor: pointer;
   font-weight: 600;
 }
-.children {
-  display: grid;
-  gap: 8px;
-  margin-top: 8px;
-}
+.children { display: grid; grid-auto-rows: auto; gap: 12px; margin-top: 8px; }
+details.node + details.node { margin-top: 12px; }
 
 .docbox {
   margin-top: 10px;
@@ -41,4 +43,35 @@
   border-radius: 8px;
   border: 1px solid #c8c8cc;
   background: #fff;
+}
+
+.string-input {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+}
+.text {
+  padding: 8px 10px;
+  border: 1px solid #c8c8cc;
+  border-radius: 8px;
+}
+.text.invalid {
+  border-color: #e11d48;
+  background: #fff1f2;
+}
+.hint {
+  font-size: 12px;
+  color: #6b7280;
+}
+.error {
+  font-size: 12px;
+  color: #e11d48;
+}
+
+.number-input {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
 }

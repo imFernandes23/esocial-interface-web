@@ -29,6 +29,12 @@ export class DynamicFormStateService {
     this.enumMap.set(rest);
   }
 
+  // STRING VALUE //
+  private textMap = signal<Record<string, string>>({});
+  getText(id: string) { return this.textMap()[id] ?? ''; }
+  setText(id: string, value: string) { this.textMap.update(m => ({ ...m, [id]: value })); }
+  clearText(id: string) { const { [id]:_, ...r } = this.textMap(); this.textMap.set(r); }
+
   /** Stubs p/ futuro: carregar de XML e gerar XML */
   loadFromXml(_xml: string) {/* TODO: parsear e popular choiceMap */}
   toXml(): string {/* TODO: serializar usando choiceMap */ return ''; }

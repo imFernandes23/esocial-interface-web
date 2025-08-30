@@ -1,57 +1,96 @@
-<details class="node" open>
-  <summary class="sum">
-    <span class="name">{{ node.name || node.kind }}</span>
-  </summary>
+<!-- Se for wrapper, não mostra caixa; apenas renderiza filhos -->
+<ng-container *ngIf="isWrapper(); else normalBox">
+  <ng-container *ngFor="let c of node.children">
+    <app-xs-tree-node [node]="c"></app-xs-tree-node>
+  </ng-container>
+</ng-container>
 
-  <!-- documentação do PRÓPRIO nó -->
-  <div class="docbox" *ngIf="node.meta?.docs?.length">
-    <ul class="docline">
-      <li *ngFor="let d of node.meta?.docs">{{ d }}</li>
-    </ul>
-  </div>
+<ng-template #normalBox>
+  <details class="node" open>
+    <summary class="sum"><span class="name">{{ node.name || node.kind }}</span></summary>
 
-  <!-- ====== CHOICE ====== -->
-  <ng-container *ngIf="isChoice(); else notChoice">
-    <div class="choice-picker">
-      <label>Escolha uma opção:</label>
-      <select
-        [value]="selectedChoiceId()"
-        (change)="onChoose(($any($event.target).value ))">
+    <!-- documentação do próprio nó -->
+    <div class="docbox" *ngIf="node.meta?.docs?.length">
+      <ul class="docbox-list">
+        <li *ngFor="let d of node.meta?.docs">{{ d }}</li>
+      </ul>
+    </div>
+
+    <!-- 1) CHOICE -->
+    <ng-container *ngIf="isChoice(); else notChoice">
+      <div class="choice-picker">
+        <label>Escolha uma opção:</label>
+        <select [value]="selectedChoiceId()" (change)="onChoose(($any($event.target).value))">
+          <option value="" disabled>— selecione —</option>
+          <option *ngFor="let opt of node.children" [value]="opt.id">{{ opt.name || 'opção' }}</option>
+        </select>
+      </div>
+      <div class="children" *ngIf="selectedChild() as chosen">
+        <app-xs-tree-node [node]="chosen"></app-xs-tree-node>
+      </div>
+    </ng-container>
+
+<!-- 2) NÃO-CHOICE -->
+<ng-template #notChoice>
+  <!-- ENUM TEM PRIORIDADE -->
+  <ng-container *ngIf="isEnumList(); else maybeNumber">
+    <div class="enum-picker">
+      <label>Selecionar:</label>
+      <select [value]="selectedEnum()" (change)="onChooseEnum(($any($event.target).value ))">
         <option value="" disabled>— selecione —</option>
-        <option *ngFor="let opt of node.children" [value]="opt.id">
-          {{ opt.name || 'opção' }}
+        <option *ngFor="let opt of enumOptions()" [value]="opt.name">
+          {{ enumLabel(opt) }}
         </option>
       </select>
     </div>
-
-    <div class="children" *ngIf="selectedChild() as chosen">
-      <app-xs-tree-node [node]="chosen"></app-xs-tree-node>
-    </div>
   </ng-container>
 
-  <!-- ====== NÃO-CHOICE ====== -->
-  <ng-template #notChoice>
-    <!-- ENUM como SELECT -->
-    <ng-container *ngIf="isEnumList(); else regularChildren">
-      <div class="enum-picker">
-        <label>Selecionar:</label>
-        <select
-          [value]="selectedEnum()"
-          (change)="onChooseEnum(($any($event.target).value ))">
-          <option value="" disabled>— selecione —</option>
-          <option *ngFor="let opt of node.children" [value]="opt.name">
-            {{ enumLabel(opt) }}
-          </option>
-        </select>
-      </div>
-      <!-- não renderiza os filhos individualmente quando é enum list -->
-    </ng-container>
+  <!-- NÚMERO (antes da string) -->
+  <ng-template #maybeNumber>
+    <div class="number-input" *ngIf="isNumericInput(); else maybeString">
+      <input
+        type="number"
+        [value]="numberValue()"
+        (input)="onNumber(($any($event.target).value ))"
+        [attr.min]="minAttr()"
+        [attr.max]="maxAttr()"
+        [attr.step]="stepAttr()"
+        class="text"
+        [class.invalid]="numberError()"
+        [placeholder]="numberHint() || 'número...'"
+        inputmode="decimal"
+      />
+      <div class="hint" *ngIf="numberHint()">{{ numberHint() }}</div>
+      <div class="error" *ngIf="numberError()">{{ numberError() }}</div>
+    </div>
+  </ng-template>
 
-    <!-- padrão: renderiza filhos normalmente -->
+  <!-- STRING (fallback) -->
+  <ng-template #maybeString>
+    <div class="string-input" *ngIf="isStringInput(); else regularChildren">
+      <input
+        type="text"
+        [value]="textValue()"
+        (input)="onText(($any($event.target).value ))"
+        [attr.minlength]="exactLen() ?? minLen() ?? null"
+        [attr.maxlength]="exactLen() ?? maxLen() ?? null"
+        [attr.pattern]="htmlPattern()"
+        class="text"
+        [class.invalid]="textError()"
+        [placeholder]="hint() || 'digite...'"
+      />
+      <div class="hint" *ngIf="hint()">{{ hint() }}</div>
+      <div class="error" *ngIf="textError()">{{ textError() }}</div>
+    </div>
+
+    <!-- filhos padrão -->
     <ng-template #regularChildren>
       <div class="children" *ngIf="node.children?.length">
         <app-xs-tree-node *ngFor="let c of node.children" [node]="c"></app-xs-tree-node>
       </div>
     </ng-template>
   </ng-template>
-</details>
+</ng-template>
+
+  </details>
+</ng-template>
