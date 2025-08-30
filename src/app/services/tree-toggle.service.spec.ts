@@ -1,13 +1,13 @@
 import { TestBed } from '@angular/core/testing';
 
-import { XmlKit } from './xml-kit';
+import { TreeToggleService } from './tree-toggle.service';
 
-describe('XmlKit', () => {
-  let service: XmlKit;
+describe('TreeToggleService', () => {
+  let service: TreeToggleService;
 
   beforeEach(() => {
     TestBed.configureTestingModule({});
-    service = TestBed.inject(XmlKit);
+    service = TestBed.inject(TreeToggleService);
   });
 
   it('should be created', () => {

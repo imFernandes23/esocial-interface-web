@@ -8,6 +8,7 @@ import { SchemaNode } from "../../../component/schema-node/schema-node";
 import { EditBufferService } from '../../../services/edit-buffer.service';
 import { XsdMutationService } from '../../../services/xsd-mutation.service';
 import { ModalComponent } from '../../../component/modal.component/modal.component';
+import { TreeToggleService } from '../../../services/tree-toggle.service';
 
 const XS = 'http://www.w3.org/2001/XMLSchema';
 
@@ -39,7 +40,8 @@ export class EventoDetailComponent {
     private store: SchemaStoreService,
     private treeService: SchemaTreeService,
     private edits: EditBufferService,
-    private mut: XsdMutationService
+    private mut: XsdMutationService,
+    public treeToggle: TreeToggleService
   ) {
     const schemaId = this.route.snapshot.paramMap.get('schemaId')!;
     this.fileName = this.route.snapshot.paramMap.get('fileName')!;
@@ -66,6 +68,13 @@ export class EventoDetailComponent {
 
       this.viewRoot = buildViewTree(rootToShow);
     }
+  }
+
+  openAll(){
+    if (this.viewRoot) this.treeToggle.openAllFrom(this.viewRoot);
+  }
+  closeAll(){
+    this.treeToggle.closeAll();
   }
 
     /** filhos de primeiro nível a renderizar no root visual */
@@ -100,8 +109,9 @@ export class EventoDetailComponent {
 
     const num = this.mut.applyNumericFacets(str.eventoXml, str.tiposXml, this.edits.snapshotNumericFacets());
 
+    const dt = this.mut.applyDateFacets(num.eventoXml, num.tiposXml, this.edits.snapshotDateFacets());
 
-    this.reportLines = [...rem.report, ...occ.report, ...str.report, ...num.report] ;
+    this.reportLines = [...rem.report, ...occ.report, ...str.report, ...num.report, ...dt.report] ;
     this.previewEvento = occ.eventoXml;
     this.previewTipos = occ.tiposXml;
     this.showConfirm = true;

@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { OccursMeta, TreeNode, ViewNode } from '../shared/models/schema-models';
-import { collectNumericFacets, inferMaxFromTypeName, inferMinMaxFromPatterns, inferMinMaxFromTypeName, inferStringLengthFromPatterns } from '../shared/utils/xml-kit';
+import { collectDateFacets, collectNumericFacets, inferMaxFromTypeName, inferMinMaxFromPatterns, inferMinMaxFromTypeName, inferStringLengthFromPatterns, isDateBase } from '../shared/utils/xml-kit';
 
 const XS = 'http://www.w3.org/2001/XMLSchema';
 
@@ -321,6 +321,13 @@ private buildSimpleTypeNode(st: Element, id: string, idx: Indexes, visited = new
       }
       if (nf.enums?.length) (meta as any).hasNumericEnums = true;
     }
+
+  if (base && isDateBase(base)) {
+    const df = collectDateFacets(restr);
+    if (Object.keys(df).length) meta.dateFacets = df;
+    // marcar se possui enums -> escondemos o editor (igual numérico)
+    if (df.enums?.length) (meta as any).hasDateEnums = true;
+  }
 
   if (base && base.toLowerCase().endsWith(':string')) {
     const f = collectStringFacets(restr);       

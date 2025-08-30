@@ -2,6 +2,8 @@ import { CommonModule } from '@angular/common';
 import { Component, Input } from '@angular/core';
 import { ViewNode } from '../../shared/models/schema-models';
 import { EditBufferService } from '../../services/edit-buffer.service';
+import { TreeToggleService } from '../../services/tree-toggle.service';
+import { Subscription } from 'rxjs';
 
 @Component({
   selector: 'app-schema-node',
@@ -13,15 +15,48 @@ export class SchemaNode {
   @Input() node!: ViewNode;
   @Input() depth = 0;
 
-  open = false;
+  expanded = false;                // controla ESTE nó
 
-  constructor(private edits: EditBufferService) {}
+  isOpen(id: string){ return this.toggleBus.isOpen(id); }
+  toggle(id: string){ this.toggleBus.toggle(id); }
 
-  onHeaderClick(ev: Event) {
-    ev.stopPropagation(); // não deixa subir pro root
-    this.open = !this.open;
+  constructor(
+    public edits: EditBufferService,
+    public toggleBus: TreeToggleService
+  ) {}
+
+  // onHeaderClick(ev: Event) {
+  //   ev.stopPropagation(); // não deixa subir pro root
+  //   this.open = !this.open;
+  // }
+  ///// Getter Datetype
+  get dateFacets() {
+    return this.node.meta?.dateFacets ?? this.node.source?.meta?.dateFacets;
   }
+  get isDateSimpleType(): boolean {
+    const base = (this.base || '').toLowerCase();
+    const isSimple = this.node.kind === 'simpleType' || this.node.source?.kind === 'simpleType';
+    const hasEnums = !!this.dateFacets?.enums?.length;
+    return isSimple && /^(xs:date|xs:datetime|xs:gyearmonth|xs:gyear|xs:time)$/.test(base) && !hasEnums;
+  }
+  get showDateEditor(){ return this.isDateSimpleType; }
 
+  get showMinIncDate(){ return this.dateFacets?.minInclusive !== undefined; }
+  get showMinExcDate(){ return this.dateFacets?.minExclusive !== undefined; }
+  get showMaxIncDate(){ return this.dateFacets?.maxInclusive !== undefined; }
+  get showMaxExcDate(){ return this.dateFacets?.maxExclusive !== undefined; }
+  get showDatePattern(){ return this.dateFacets?.pattern !== undefined; }
+
+  // tipo de input mais apropriado
+  get dateInputType(): 'date'|'datetime-local'|'month'|'number'|'time'|'text' {
+    const base = (this.base || '').toLowerCase();
+    if (base === 'xs:date') return 'date';
+    if (base === 'xs:datetime') return 'datetime-local';
+    if (base === 'xs:gyearmonth') return 'month';
+    if (base === 'xs:gyear') return 'number'; // ano
+    if (base === 'xs:time') return 'time';
+    return 'text';
+  }
 
   //// Getter numerics
 
@@ -157,7 +192,21 @@ export class SchemaNode {
     return this.node?.meta?.use ?? this.node?.source?.meta?.use;
   }
 ///////////////////////// Funções manipuladoras /////////////////////////////////
-  // numeric Helpers
+  // data Helpers
+  setDateFacet(key: 'minInclusive'|'minExclusive'|'maxInclusive'|'maxExclusive'|'pattern', value?: string) {
+    const cur = this.edits.getDateFacets(this.node.id) ?? { ...(this.dateFacets ?? {}) };
+    const next = { ...cur, [key]: value || undefined };
+
+    if (key === 'minInclusive') delete (next as any).minExclusive;
+    if (key === 'minExclusive') delete (next as any).minInclusive;
+    if (key === 'maxInclusive') delete (next as any).maxExclusive;
+    if (key === 'maxExclusive') delete (next as any).maxInclusive;
+
+    this.edits.setDateFacets(this.node.id, next);
+  }
+
+
+// numeric Helpers
   private clampMin(n?: number) {
     const curInc = this.numericFacets?.minInclusive;
     const curExc = this.numericFacets?.minExclusive;
@@ -286,16 +335,16 @@ export class SchemaNode {
   private readonly NUMERIC_FACET_KINDS = new Set([
   'minInclusive','maxInclusive','minExclusive','maxExclusive','totalDigits','fractionDigits','pattern'
 ]);
+  private readonly DATE_FACET_KINDS = new Set([
+    'minInclusive','maxInclusive','minExclusive','maxExclusive','pattern'
+  ]);
 
   filteredChildren() {
     let kids = this.node.children ?? [];
-    if (this.showStringEditor) {
-      kids = kids.filter(k => !this.STRING_FACET_KINDS.has(k.kind));
-    }
-    if (this.showNumericEditor) {
-      kids = kids.filter(k => !this.NUMERIC_FACET_KINDS.has(k.kind));
-    }
-  return kids;
+    if (this.showStringEditor)   kids = kids.filter(k => !this.STRING_FACET_KINDS.has(k.kind));
+    if (this.showNumericEditor)  kids = kids.filter(k => !this.NUMERIC_FACET_KINDS.has(k.kind));
+    if (this.showDateEditor)     kids = kids.filter(k => !this.DATE_FACET_KINDS.has(k.kind));
+    return kids;
   }
 }
 

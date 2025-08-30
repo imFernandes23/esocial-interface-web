@@ -1,15 +1,15 @@
-<div class="box" [style.marginLeft.px]="depth * 12">
-  <div class="box-head" (click)="onHeaderClick($event)">
+<div class="box"  [style.marginLeft.px]="depth * 5">
+  <div class="box-head" (click)="toggle(node.id)">
     <div class="left">
       <span class="tag">{{ node.name }}</span>
       <span class="doc" *ngIf="typeName">type: {{ typeName }}</span>
       <span class="doc" *ngIf="base" style="margin-left:8px">base: {{ base }}</span>
       <span class="doc" *ngIf="use" style="margin-left:8px">use: {{ use }}</span>
     </div>
-    <div class="right">{{ open ? '▾' : '▸' }}</div>
+    <div class="right">{{ expanded ? '▾' : '▸' }}</div>
   </div>
 
-  <div class="box-body" *ngIf="open" (click)="$event.stopPropagation()">
+  <div class="box-body" *ngIf="isOpen(node.id)" (click)="$event.stopPropagation()">
     <!-- Documentação do nó-->
     <ng-container *ngIf="(node.meta?.docs || node.source?.meta?.docs) as docs">
       <div class="docbox">
@@ -48,6 +48,43 @@
         </div>
       </div>
     </div>
+
+  <div class="date-box" *ngIf="showDateEditor">
+    <div class="sf-row" *ngIf="showMinIncDate">
+      <label class="lbl">Mínimo (inclusive)</label>
+      <input [type]="dateInputType"
+            [value]="edits.getDateFacets(node.id)?.minInclusive ?? dateFacets?.minInclusive ?? ''"
+            (input)="setDateFacet('minInclusive', ($event.target).value)">
+    </div>
+
+    <div class="sf-row" *ngIf="showMinExcDate">
+      <label class="lbl">Mínimo (exclusive)</label>
+      <input [type]="dateInputType"
+            [value]="edits.getDateFacets(node.id)?.minExclusive ?? dateFacets?.minExclusive ?? ''"
+            (input)="setDateFacet('minExclusive', ($event.target).value)">
+    </div>
+
+    <div class="sf-row" *ngIf="showMaxIncDate">
+      <label class="lbl">Máximo (inclusive)</label>
+      <input [type]="dateInputType"
+            [value]="edits.getDateFacets(node.id)?.maxInclusive ?? dateFacets?.maxInclusive ?? ''"
+            (input)="setDateFacet('maxInclusive', ($event.target).value)">
+    </div>
+
+    <div class="sf-row" *ngIf="showMaxExcDate">
+      <label class="lbl">Máximo (exclusive)</label>
+      <input [type]="dateInputType"
+            [value]="edits.getDateFacets(node.id)?.maxExclusive ?? dateFacets?.maxExclusive ?? ''"
+            (input)="setDateFacet('maxExclusive', ($event.target).value)">
+    </div>
+
+    <div class="sf-row" *ngIf="showDatePattern">
+      <label class="lbl">Pattern (regex)</label>
+      <input type="text"
+            [value]="edits.getDateFacets(node.id)?.pattern ?? dateFacets?.pattern ?? ''"
+            (input)="setDateFacet('pattern', ($event.target).value)">
+    </div>
+  </div>
 
     <!-- FORM de Numeric Facet -->
 

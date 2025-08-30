@@ -8,6 +8,12 @@ export type NumericEdit = {
   pattern?: string;
 };
 
+export type DateEdit = {
+  minInclusive?: string; maxInclusive?: string;
+  minExclusive?: string; maxExclusive?: string;
+  pattern?: string;
+};
+
 @Injectable({
   providedIn: 'root',
 })
@@ -87,4 +93,12 @@ export class EditBufferService {
   getNumericFacets(ctxId: string) { return this.numericEdits.get(ctxId); }
   snapshotNumericFacets() { return Array.from(this.numericEdits.entries()); }
   clearNumericFacets(){ this.numericEdits.clear(); }
+
+
+  //// Editar Date type
+  private dateEdits = new Map<string, DateEdit>();
+  setDateFacets(id: string, f: DateEdit) { this.dateEdits.set(id, { ...f }); }
+  getDateFacets(id: string) { return this.dateEdits.get(id); }
+  snapshotDateFacets() { return Array.from(this.dateEdits.entries()); }
+  clearDateFacets(){ this.dateEdits.clear(); }
 }

@@ -312,6 +312,56 @@ export class XsdMutationService {
 
     return { eventoXml: serialize(eventoDoc), tiposXml: serialize(tiposDoc), changes, report };
   }
+
+  applyDateFacets(
+    eventoXml: string,
+    tiposXml: string,
+    edits: Array<[string, {
+      minInclusive?: string; maxInclusive?: string;
+      minExclusive?: string; maxExclusive?: string;
+      pattern?: string;
+    }]>
+  ){
+    const parse = (x:string)=> new DOMParser().parseFromString(x,'application/xml');
+    const ser   = (d:Document)=> new XMLSerializer().serializeToString(d);
+    const ev = parse(eventoXml);
+    const tp = parse(tiposXml);
+
+    const setFacet = (restr: Element, local: string, value?: string) => {
+      Array.from(restr.getElementsByTagNameNS(XS, local))
+        .filter(n => n.parentNode === restr)
+        .forEach(n => n.parentNode!.removeChild(n));
+      if (value==null || value==='') return;
+      const el = restr.ownerDocument!.createElementNS(XS, `xs:${local}`);
+      el.setAttribute('value', value);
+      restr.appendChild(el);
+    };
+
+    let changes = 0;
+    const report: string[] = [];
+
+    for (const [ctxId, f] of edits) {
+      let restr = findSimpleTypeRestriction(tp, ctxId) || findSimpleTypeRestriction(ev, ctxId);
+      if (!restr) { report.push(`⚠️ Restriction não encontrada para ${ctxId}`); continue; }
+
+      // conflitos
+      if (f.minInclusive!==undefined) delete f.minExclusive;
+      if (f.maxInclusive!==undefined) delete f.maxExclusive;
+      if (f.minExclusive!==undefined) delete f.minInclusive;
+      if (f.maxExclusive!==undefined) delete f.maxInclusive;
+
+      setFacet(restr, 'minInclusive', f.minInclusive);
+      setFacet(restr, 'maxInclusive', f.maxInclusive);
+      setFacet(restr, 'minExclusive', f.minExclusive);
+      setFacet(restr, 'maxExclusive', f.maxExclusive);
+      setFacet(restr, 'pattern',      f.pattern);
+
+      changes++;
+      report.push(`Datas (${ctxId}) → min:${f.minInclusive ?? (f.minExclusive ? '>'+f.minExclusive : '∅')} max:${f.maxInclusive ?? (f.maxExclusive ? '<'+f.maxExclusive : '∅')}${f.pattern? ', pattern':''}`);
+    }
+
+    return { eventoXml: ser(ev), tiposXml: ser(tp), changes, report };
+  }
 }
 
 type StringFacets = {

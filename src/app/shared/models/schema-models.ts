@@ -27,6 +27,12 @@ export interface NumericFacets {
   pattern?: string; enums?: string [];
 }
 
+export interface DateFacets {
+  minInclusive?: string; maxInclusive?: string;
+  minExclusive?: string; maxExclusive?: string;
+  pattern?: string; enums?: string[];
+}
+
 export interface TreeNode {
   id: string;
   name: string;      // o que exibimos na UI
@@ -40,6 +46,7 @@ export interface TreeNode {
     occurs?: OccursMeta;
     stringFacets?: StringFacets;
     numericFacets?: NumericFacets;
+    dateFacets?: DateFacets;
     inferredNum?: {maxLengthFromName?: number; min?: number; max?: number};
   }
 }
@@ -58,6 +65,7 @@ export interface ViewNode {
     occurs?: OccursMeta;
     stringFacets?: StringFacets;
     numericFacets?: NumericFacets;
+    dateFacets?: DateFacets;
     inferredNum?: {maxLengthFromName?: number; min?: number; max?: number};
   };
 }

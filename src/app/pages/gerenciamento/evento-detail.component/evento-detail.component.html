@@ -1,7 +1,9 @@
-  <div class="header">
-    <button class="btn" (click)="goBack()">← Voltar</button>
-    <h2>{{ title }}</h2>
-  </div>
+<div class="header">
+  <button class="btn" (click)="goBack()">← Voltar</button>
+  <span style="flex:1"></span>
+  <button class="btn" (click)="openAll()">Abrir tudo</button>
+  <button class="btn" (click)="closeAll()">Fechar tudo</button>
+</div>
 
   <div class="card" *ngIf="schema">
     <div class="box">

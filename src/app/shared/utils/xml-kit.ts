@@ -1,5 +1,32 @@
 export const XS = 'http://www.w3.org/2001/XMLSchema';
 
+export function isDateBase(base?: string) {
+  const b = (base || '').toLowerCase();
+  return /^(xs:date|xs:datetime|xs:gyearmonth|xs:gyear|xs:time)$/.test(b);
+}
+
+export function collectDateFacets(restr: Element) {
+  // valores são strings ISO (ou parciais) exatamente como no XSD
+  const f: {
+    minInclusive?: string; maxInclusive?: string;
+    minExclusive?: string; maxExclusive?: string;
+    pattern?: string; enums?: string[];
+  } = {};
+  for (const c of Array.from(restr.children)) {
+    if (c.namespaceURI !== XS) continue;
+    const e = c as Element; const v = e.getAttribute('value') ?? '';
+    switch (e.localName) {
+      case 'minInclusive': f.minInclusive = v; break;
+      case 'maxInclusive': f.maxInclusive = v; break;
+      case 'minExclusive': f.minExclusive = v; break;
+      case 'maxExclusive': f.maxExclusive = v; break;
+      case 'pattern'     : f.pattern      = v; break;
+      case 'enumeration' : (f.enums ??= []).push(v); break;
+    }
+  }
+  return f;
+}
+
 /** Encontra o <xs:restriction> de um simpleType (global "st:TS_*" ou inline "st:inline"). */
 export function findSimpleTypeRestriction(doc: Document, ctxId: string): Element | null {
   // global: .../st:TS_nome
