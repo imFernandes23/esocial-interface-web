@@ -1,12 +1,18 @@
-    <div class="wizard">
-      <h2>Gerar novo: {{ fileName }}</h2>
-
-      <div class="placeholder" *ngIf="!xml">
-        Arquivo não encontrado no conjunto mais recente ou XML vazio.
-      </div>
-
-      <div class="placeholder" *ngIf="xml">
-        (Próximos passos) Montar o formulário dinâmico a partir do XSD:
-        <pre style="white-space: pre-wrap">{{ xml.slice(0, 2000) }}</pre>
-      </div>
+    <div class="actions">
+        <button class="button" routerLink="/gestao">← Voltar</button>
+        <button type="button" (click)="expandAll()">Expandir tudo</button>
+        <button type="button" (click)="collapseAll()">Recolher tudo</button>
     </div>
+
+    <h2 class="title">{{ headerTitle() }}</h2>
+
+
+    <div class="root" *ngIf="root() as r; else missing">
+      <app-xs-tree-node [node]="r"></app-xs-tree-node>
+    </div>
+
+    <ng-template #missing>
+      <div class="placeholder">
+        Não foi possível construir a árvore do evento. Verifique se o <b>tipos.xsd</b> está presente.
+      </div>
+    </ng-template>

@@ -1,0 +1,39 @@
+<details class="node" open>
+  <summary class="sum">
+    <span class="name">{{ node.name || node.kind }}</span>
+  </summary>
+
+  <!-- documentação do PRÓPRIO nó -->
+  <div class="docbox" *ngIf="node.meta?.docs?.length">
+    <ul class="docline">
+      <li *ngFor="let d of node.meta?.docs">{{ d }}</li>
+    </ul>
+  </div>
+
+  <!-- === CASO CHOICE: seletor e renderização condicional === -->
+  <ng-container *ngIf="isChoice(); else regularChildren">
+    <div class="choice-picker">
+      <label>Escolha uma opção:</label>
+      <select
+        [value]="selectedId()"
+        (change)="onChoose(($any($event.target).value))">
+        <option value="" disabled>— selecione —</option>
+        <option *ngFor="let opt of node.children" [value]="opt.id">
+          {{ opt.name || 'opção' }}
+        </option>
+      </select>
+    </div>
+
+    <div class="children" *ngIf="selectedChild() as chosen">
+      <app-xs-tree-node [node]="chosen"></app-xs-tree-node>
+    </div>
+  </ng-container>
+
+  <!-- === CASO NÃO-CHOICE: renderiza todos os filhos normalmente === -->
+  <ng-template #regularChildren>
+    <div class="children" *ngIf="node.children?.length">
+      <app-xs-tree-node *ngFor="let c of node.children" [node]="c"></app-xs-tree-node>
+    </div>
+  </ng-template>
+
+</details>
