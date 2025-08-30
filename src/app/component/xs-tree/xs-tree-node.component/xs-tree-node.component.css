@@ -75,3 +75,19 @@ details.node + details.node { margin-top: 12px; }
   gap: 6px;
   margin-top: 10px;
 }
+
+/* nunca deixe nada expandir além da largura */
+:host, .page, .content, .node, .children { max-width: 100%; overflow-x: hidden; }
+
+/* quebra qualquer coisa longa (URIs, tokens, {placeholders}) */
+.docbox, .docbox-list, .docbox-list li, details.node, summary.sum, .enum-picker, .string-input, .number-input, .date-input {
+  white-space: normal;
+  overflow-wrap: anywhere;   /* força quebra mesmo sem espaços */
+  word-break: break-word;
+}
+
+/* em containers flex/grid, previne expansão que gera scroll */
+* { min-width: 0; box-sizing: border-box; }
+
+/* opcional: evita que summary “estoure” */
+details.node > summary { overflow: hidden; text-overflow: ellipsis; }
