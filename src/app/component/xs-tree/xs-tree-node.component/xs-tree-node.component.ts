@@ -11,6 +11,8 @@ import { DynamicFormStateService } from '../../../services/dynamic-form-state.se
 })
 export class XsTreeNodeComponent {
   @Input({ required: true }) node!: ViewNode;
+  @Input() vPrefix = '';
+  @Input() instanceIndex?: number;
 
   private form = inject(DynamicFormStateService);
 
@@ -18,6 +20,34 @@ export class XsTreeNodeComponent {
   // Utils básicos
   // ----------------------------------------------------
   lc = (s?: string) => (s || '').toLowerCase();
+
+  private pathFor(): string {
+    return this.keyFor(this.node.id);
+  }
+
+  /** logger padronizado */
+  private logUpdate(pathVisual: string, value: string, valid: boolean) {
+    console.groupCollapsed('[field:update]');
+    console.log('path  :', pathVisual);
+    console.log('value :', value);
+    console.log('valid :', valid);
+    console.groupEnd();
+  }
+
+  private elName(): string { return this.node?.name || ''; }
+
+  /** caminho VISUAL do elemento atual */
+
+  public getVisualPath(): string {
+    const isEl = (this.node?.kind || '').toLowerCase() === 'element';
+    if (!isEl) return this.vPrefix || '';
+    const idx = this.instanceIndex != null ? `[${this.instanceIndex + 1}]` : '';
+    return (this.vPrefix ? this.vPrefix + '/' : '') + this.elName() + idx;
+  }
+
+  private isRequiredElement(): boolean {
+    return (this.node.meta?.occurs?.min ?? 0) >= 1;
+  }
 
   private childrenOfKind(n: ViewNode, kind: string) {
     return (n.children || []).filter(c => this.lc(c.kind) === this.lc(kind));
@@ -185,8 +215,13 @@ export class XsTreeNodeComponent {
   // CHOICE
   // ----------------------------------------------------
   isChoice(): boolean { return this.lc(this.node.kind) === 'choice'; }
-  selectedChoiceId = computed(() => this.form.getChoice(this.node.id) ?? '');
-  onChoose(childId: string) { this.form.setChoice(this.node.id, childId); }
+
+  selectedChoiceId = computed(() => this.form.getChoice(this.keyFor(this.node.id)) ?? '');
+  onChoose(childId: string) {
+    this.form.setChoice(this.keyFor(this.node.id), childId);
+    this.logUpdate(this.getVisualPath() + ' [choice]', childId, !!childId);
+  }
+
   selectedChild = computed<ViewNode | null>(() => {
     const id = this.selectedChoiceId();
     if (!id) {
@@ -258,12 +293,28 @@ export class XsTreeNodeComponent {
   enumOptions = computed(() => this.collectEnumOptionsDeep(this.node));
   isEnumList(): boolean { return this.enumOptions().length > 0; }
 
-  selectedEnum = computed(() => this.form.getEnum(this.node.id) ?? '');
-  onChooseEnum(val: string) { this.form.setEnum(this.node.id, val); }
+
+  selectedEnum = computed(() => this.form.getEnum(this.keyFor(this.node.id)) ?? '');
+  onChooseEnum(val: string) {
+    const value = (val ?? '').trim();
+    this.form.setEnum(this.keyFor(this.node.id), value);
+    const required = this.isRequiredNode();
+    const allowed = this.enumOptions().map(o => o.name);
+    const valid = (value !== '' || !required) && (value === '' || allowed.includes(value));
+    this.logUpdate(this.getVisualPath(), value, valid);
+  }
+
   enumLabel(opt: ViewNode): string {
     const val = opt.name || '';
     const doc = (opt.meta?.docs && opt.meta.docs[0]) ? String(opt.meta.docs[0]).trim() : '';
     return doc ? `${val} - ${doc}` : val;
+  }
+
+  private enumError(val: string): string {
+    const opts = this.enumOptions().map(o => o.name);
+    if (!val) return this.isRequiredElement() ? 'Obrigatório' : '';
+    if (opts.length && !opts.includes(val)) return 'Valor não é uma opção válida';
+    return '';
   }
 
   // ----------------------------------------------------
@@ -276,8 +327,13 @@ export class XsTreeNodeComponent {
     return (k === 'element' || k === 'simpletype') && base.includes('string');
   }
 
-  textValue = computed(() => this.form.getText(this.node.id));
-  onText(v: string) { this.form.setText(this.node.id, v); }
+  textValue = computed(() => this.form.getText(this.keyFor(this.node.id)));
+  onText(v: string) {
+    const value = (v ?? '').trim();
+    this.form.setText(this.keyFor(this.node.id), value);   // continua usando o “path lógico”
+    const valid = this.textError() === '';
+    this.logUpdate(this.getVisualPath(), value, valid);       // <-- agora visual
+  }
 
   exactLen(): number | undefined { return this.effectiveStringFacets().length; }
   minLen(): number | undefined { return this.effectiveStringFacets().minLength; }
@@ -356,8 +412,13 @@ hint(): string {
            this.numericBases.some(b => base.endsWith(b));
   }
 
-  numberValue = computed(() => this.form.getText(this.node.id)); // armazenamos como string
-  onNumber(v: string) { this.form.setText(this.node.id, v); }
+  numberValue = computed(() => this.form.getText(this.keyFor(this.node.id)));
+  onNumber(v: string) {
+    const value = (v ?? '').trim();
+    this.form.setText(this.keyFor(this.node.id), value);
+    const valid = this.numberError() === '';
+    this.logUpdate(this.getVisualPath(), value, valid);
+  }
 
   // patterns numéricos (reuso do coletor)
   numericPatterns(): string[] { return this.collectAllPatternsDeep(); }
@@ -484,7 +545,14 @@ numberError = computed(() => {
 
   /** Reaproveita o armazenamento de texto que você já usa */
   dateValue() { return this.textValue(); }
-  onDate(v: string) { this.onText(v); }
+
+  onDate(v: string) {
+    const value = (v ?? '').trim();
+    this.form.setText(this.keyFor(this.node.id), value);
+    const valid = this.dateError() === '';
+    this.logUpdate(this.getVisualPath(), value, valid);
+  }
+
 
   /** Facets de data do próprio nó (sem subárvore) */
   private dateFacetsHere() {

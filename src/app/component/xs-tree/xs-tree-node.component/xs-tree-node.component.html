@@ -19,8 +19,9 @@
           <!-- Renderiza a MESMA árvore, mas com prefixo e repeat desabilitado -->
           <app-xs-tree-node
             [node]="node"
-            [idPrefix]="idPrefix + node.id + '[' + idx + ']/'"
-            [disableRepeat]="true">
+            [vPrefix]="vPrefix"
+            [disableRepeat]="true"
+            [instanceIndex]="idx">
           </app-xs-tree-node>
         </div>
       </ng-container>
@@ -39,7 +40,11 @@
   <!-- Se for wrapper, não mostra caixa; apenas renderiza filhos -->
   <ng-container *ngIf="isWrapper(); else normalBox">
     <ng-container *ngFor="let c of node.children">
-      <app-xs-tree-node [node]="c" [idPrefix]="idPrefix"></app-xs-tree-node>
+      <app-xs-tree-node 
+        [node]="c" 
+        [idPrefix]="idPrefix"
+        [vPrefix]="((node.kind || '').toLowerCase() === 'element' ? getVisualPath() : vPrefix)"
+      ></app-xs-tree-node>
     </ng-container>
   </ng-container>
 
@@ -64,7 +69,11 @@
           </select>
         </div>
         <div class="children" *ngIf="selectedChild() as chosen">
-          <app-xs-tree-node [node]="chosen" [idPrefix]="idPrefix"></app-xs-tree-node>
+          <app-xs-tree-node 
+            [node]="chosen" 
+            [idPrefix]="idPrefix"
+            [vPrefix]="((node.kind || '').toLowerCase() === 'element' ? getVisualPath() : vPrefix)"
+          ></app-xs-tree-node>
         </div>
       </ng-container>
 
@@ -142,7 +151,12 @@
           <!-- filhos padrão -->
           <ng-template #regularChildren>
             <div class="children" *ngIf="node.children?.length">
-              <app-xs-tree-node *ngFor="let c of node.children" [node]="c" [idPrefix]="idPrefix"></app-xs-tree-node>
+              <app-xs-tree-node 
+                *ngFor="let c of node.children" 
+                [node]="c" 
+                [idPrefix]="idPrefix"
+                [vPrefix]="((node.kind || '').toLowerCase() === 'element' ? getVisualPath() : vPrefix)"
+                ></app-xs-tree-node>
             </div>
           </ng-template>
         </ng-template>
