@@ -76,6 +76,13 @@ details.node + details.node { margin-top: 12px; }
   margin-top: 10px;
 }
 
+.date-input {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+}
+
 /* nunca deixe nada expandir além da largura */
 :host, .page, .content, .node, .children { max-width: 100%; overflow-x: hidden; }
 

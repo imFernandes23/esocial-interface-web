@@ -45,25 +45,44 @@
     </div>
   </ng-container>
 
-  <!-- NÚMERO (antes da string) -->
-  <ng-template #maybeNumber>
-    <div class="number-input" *ngIf="isNumericInput(); else maybeString">
-      <input
-        type="number"
-        [value]="numberValue()"
-        (input)="onNumber(($any($event.target).value ))"
-        [attr.min]="minAttr()"
-        [attr.max]="maxAttr()"
-        [attr.step]="stepAttr()"
-        class="text"
-        [class.invalid]="numberError()"
-        [placeholder]="numberHint() || 'número...'"
-        inputmode="decimal"
-      />
-      <div class="hint" *ngIf="numberHint()">{{ numberHint() }}</div>
-      <div class="error" *ngIf="numberError()">{{ numberError() }}</div>
-    </div>
-  </ng-template>
+<!-- NÚMERO (antes da string) -->
+<ng-template #maybeNumber>
+  <div class="number-input" *ngIf="isNumericInput(); else maybeDate">
+    <input
+      type="number"
+      [value]="numberValue()"
+      (input)="onNumber(($any($event.target).value ))"
+      [attr.min]="minAttr()"
+      [attr.max]="maxAttr()"
+      [attr.step]="stepAttr()"
+      class="text"
+      [class.invalid]="numberError()"
+      [placeholder]="numberHint() || 'número...'"
+      inputmode="decimal"
+    />
+    <div class="hint" *ngIf="numberHint()">{{ numberHint() }}</div>
+    <div class="error" *ngIf="numberError()">{{ numberError() }}</div>
+  </div>
+</ng-template>
+
+<!-- DATA (xs:date) — só dispara quando o nó ATUAL é xs:date -->
+<ng-template #maybeDate>
+  <div class="date-input" *ngIf="isDateHere(); else maybeString">
+    <!-- Se preferir digitação livre, troque type="date" por type="text" e mantenha a validação acima -->
+    <input
+      type="date"
+      [value]="dateValue()"
+      (input)="onDate(($any($event.target).value ))"
+      [attr.min]="dateMinAttr()"
+      [attr.max]="dateMaxAttr()"
+      class="text"
+      [class.invalid]="dateError()"
+      placeholder="AAAA-MM-DD"
+    />
+    <div class="hint" *ngIf="dateHint()">{{ dateHint() }}</div>
+    <div class="error" *ngIf="dateError()">{{ dateError() }}</div>
+  </div>
+</ng-template>
 
   <!-- STRING (fallback) -->
   <ng-template #maybeString>

@@ -407,5 +407,78 @@ numberError = computed(() => {
     return s;
   }
 
+  //====================================================
+  // DATE TYPE
+  //====================================================
 
+  /** xs:qname -> token final: xs:date, xsd:date, {uri}date => 'date' */
+  private qnToToken(s?: string): string {
+    if (!s) return '';
+    return String(s).toLowerCase().trim()
+      .replace(/^\{[^}]+\}/, '')
+      .replace(/^[a-z_][\w.-]*:/, '')
+      .trim();
+  }
+
+  /** Detecta data SÓ no nó atual (não olha filhos) */
+  isDateHere(): boolean {
+    const k = (this.node.kind || '').toLowerCase();
+    if (!(k === 'element' || k === 'simpletype')) return false;
+    const tok = this.qnToToken(this.node.meta?.base) || this.qnToToken(this.node.meta?.typeName);
+    return tok === 'date';
+  }
+
+  /** Reaproveita o armazenamento de texto que você já usa */
+  dateValue() { return this.textValue(); }
+  onDate(v: string) { this.onText(v); }
+
+  /** Facets de data do próprio nó (sem subárvore) */
+  private dateFacetsHere() {
+    return this.node.meta?.dateFacets ?? {};
+  }
+
+  private addDays(iso: string, d: number): string | null {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || ''); if (!m) return null;
+    const dt = new Date(Date.UTC(+m[1], +m[2]-1, +m[3] + d));
+    const mm = String(dt.getUTCMonth()+1).padStart(2,'0');
+    const dd = String(dt.getUTCDate()).padStart(2,'0');
+    return `${dt.getUTCFullYear()}-${mm}-${dd}`;
+  }
+
+  dateMinAttr(): string | null {
+    const f = this.dateFacetsHere();
+    return f.minInclusive ?? (f.minExclusive ? this.addDays(f.minExclusive, +1) : null);
+  }
+  dateMaxAttr(): string | null {
+    const f = this.dateFacetsHere();
+    return f.maxInclusive ?? (f.maxExclusive ? this.addDays(f.maxExclusive, -1) : null);
+  }
+
+  /** Mensagens (simples) */
+  dateHint(): string {
+    const f = this.dateFacetsHere();
+    const bits: string[] = [];
+    if (f.minInclusive) bits.push(`mín: ${f.minInclusive}`);
+    if (f.minExclusive) bits.push(`> ${f.minExclusive}`);
+    if (f.maxInclusive) bits.push(`máx: ${f.maxInclusive}`);
+    if (f.maxExclusive) bits.push(`< ${f.maxExclusive}`);
+    return bits.join(' · ');
+  }
+
+  /** Validação leve: obrigatório + AAAA-MM-DD + limites, sem interferir em mais nada */
+  dateError(): string {
+    const v = (this.dateValue() || '').trim();
+    if (!v) return 'Obrigatório';
+
+    if (!/^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/.test(v)) return 'Formato inválido (AAAA-MM-DD)';
+    const d = new Date(v), [Y,M,D] = v.split('-').map(Number);
+    if (isNaN(+d) || d.getUTCFullYear()!==Y || d.getUTCMonth()+1!==M || d.getUTCDate()!==D) return 'Data inexistente';
+
+    const f = this.dateFacetsHere();
+    if (f.minInclusive && !(v >= f.minInclusive)) return `Mínimo: ${f.minInclusive}`;
+    if (f.minExclusive && !(v >  f.minExclusive)) return `Deve ser > ${f.minExclusive}`;
+    if (f.maxInclusive && !(v <= f.maxInclusive)) return `Máximo: ${f.maxInclusive}`;
+    if (f.maxExclusive && !(v <  f.maxExclusive)) return `Deve ser < ${f.maxExclusive}`;
+    return '';
+  }
 }
