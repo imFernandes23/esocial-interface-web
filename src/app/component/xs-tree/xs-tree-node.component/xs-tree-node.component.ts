@@ -1,7 +1,9 @@
-import { Component, computed, inject, Input, OnInit } from '@angular/core';
+import { Component, computed, DestroyRef, inject, Input, OnChanges, OnInit, SimpleChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ViewNode } from '../../../shared/models/schema-models';
 import { DynamicFormStateService } from '../../../services/dynamic-form-state.service';
+import { LiveXmlService } from '../../../services/live-xml.service';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 @Component({
   selector: 'app-xs-tree-node',
@@ -9,16 +11,72 @@ import { DynamicFormStateService } from '../../../services/dynamic-form-state.se
   templateUrl: './xs-tree-node.component.html',
   styleUrl: './xs-tree-node.component.css'
 })
-export class XsTreeNodeComponent {
+export class XsTreeNodeComponent implements OnInit, OnChanges{
   @Input({ required: true }) node!: ViewNode;
   @Input() vPrefix = '';
   @Input() instanceIndex?: number;
+
+  private liveBoundPath?: string;
+
+  constructor( private liveXml: LiveXmlService, private destroyRef: DestroyRef ){}
+
+  ngOnInit(): void {
+    this.bindToLiveXmlIfReady();
+  }
+
+  ngOnChanges(changes: SimpleChanges): void {
+    if ('vPrefix' in changes || 'instanceIndex' in changes) {
+      this.bindToLiveXmlIfReady();
+    }
+  }
 
   private form = inject(DynamicFormStateService);
 
   // ----------------------------------------------------
   // Utils básicos
   // ----------------------------------------------------
+
+  private readFormOnce(): string {
+    const key = this.keyFor(this.node.id);
+    if (this.isEnumList()) return this.form.getEnum(key) ?? '';
+    return this.form.getText(key) ?? '';
+  }
+
+  private applyToFormFromXml(v: string): void {
+    const key = this.keyFor(this.node.id);
+    if (this.isEnumList()) this.form.setEnum(key, v ?? '');
+    else this.form.setText(key, v ?? '');
+  }
+
+  private bindToLiveXmlIfReady(): void {
+    const pathV = this.getVisualPath();
+    if (!pathV) return;
+    if (this.liveBoundPath === pathV) return;
+
+    this.liveBoundPath = pathV;
+
+    // (A) CRIAR TAG VAZIA ASSIM QUE O CAMPO EXISTE NO FORM
+    const isElement = (this.node?.kind || '').toLowerCase() === 'element';
+    const occMin = this.node.meta?.occurs?.min ?? 1;
+    if (isElement && occMin > 0) {
+      this.liveXml.ensurePath(pathV);
+    }
+
+    // (B) ouvir XML -> aplicar no form
+    this.liveXml.observe(pathV)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(val => {
+        if (val !== this.readFormOnce()) this.applyToFormFromXml(val);
+      });
+
+    // (C) semear XML com o que o form já tiver
+    const current = this.readFormOnce();
+    if ((current ?? '').trim() !== '') {
+      this.liveXml.setValue(pathV, current);
+    }
+  }
+
+  //====================================================
   lc = (s?: string) => (s || '').toLowerCase();
 
   private pathFor(): string {
@@ -301,7 +359,9 @@ export class XsTreeNodeComponent {
     const required = this.isRequiredNode();
     const allowed = this.enumOptions().map(o => o.name);
     const valid = (value !== '' || !required) && (value === '' || allowed.includes(value));
-    this.logUpdate(this.getVisualPath(), value, valid);
+    const pathV = this.getVisualPath();
+    this.liveXml.setValue(pathV, value)
+    this.logUpdate(pathV, value, valid);       // <-- agora visual
   }
 
   enumLabel(opt: ViewNode): string {
@@ -332,7 +392,9 @@ export class XsTreeNodeComponent {
     const value = (v ?? '').trim();
     this.form.setText(this.keyFor(this.node.id), value);   // continua usando o “path lógico”
     const valid = this.textError() === '';
-    this.logUpdate(this.getVisualPath(), value, valid);       // <-- agora visual
+    const pathV = this.getVisualPath();
+    this.liveXml.setValue(pathV, value)
+    this.logUpdate(pathV, value, valid);       // <-- agora visual
   }
 
   exactLen(): number | undefined { return this.effectiveStringFacets().length; }
@@ -417,7 +479,9 @@ hint(): string {
     const value = (v ?? '').trim();
     this.form.setText(this.keyFor(this.node.id), value);
     const valid = this.numberError() === '';
-    this.logUpdate(this.getVisualPath(), value, valid);
+    const pathV = this.getVisualPath();
+    this.liveXml.setValue(pathV, value)
+    this.logUpdate(pathV, value, valid);
   }
 
   // patterns numéricos (reuso do coletor)
@@ -550,7 +614,9 @@ numberError = computed(() => {
     const value = (v ?? '').trim();
     this.form.setText(this.keyFor(this.node.id), value);
     const valid = this.dateError() === '';
-    this.logUpdate(this.getVisualPath(), value, valid);
+    const pathV = this.getVisualPath();
+    this.liveXml.setValue(pathV, value);
+    this.logUpdate(pathV, value, valid);
   }
 
 
