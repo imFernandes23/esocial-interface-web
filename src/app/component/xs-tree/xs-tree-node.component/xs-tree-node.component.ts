@@ -62,6 +62,18 @@ export class XsTreeNodeComponent implements OnInit, OnChanges{
       this.liveXml.ensurePath(pathV);
     }
 
+    // (b) Odernar instancias de filhos
+
+    if (this.node?.children?.length) {
+      const order = this.node.children
+        .filter(c => (c.kind || '').toLowerCase() === 'element')
+        .map(c => c.name!)
+        .filter(Boolean);
+      if (order.length) {
+        this.liveXml.registerOrder(pathV, order);
+      }
+    }
+
     // (B) ouvir XML -> aplicar no form
     this.liveXml.observe(pathV)
       .pipe(takeUntilDestroyed(this.destroyRef))

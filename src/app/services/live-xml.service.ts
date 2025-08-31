@@ -6,6 +6,19 @@ export class LiveXmlService {
   private doc: Document | null = null;
   private pathSubjects = new Map<string, BehaviorSubject<string>>();
 
+  // Mapa de ordem de filhos por caminho do pai (caminho “visual”, sem [n])
+  private parentOrders = new Map<string, string[]>();
+
+  /** Registra a ordem dos filhos (nomes qualificados) de um caminho de pai */
+  public registerOrder(parentVisualPath: string, order: string[]) {
+    this.parentOrders.set(this.normalizePath(parentVisualPath), order.slice());
+  }
+
+  private normalizePath(p: string): string {
+    // remove [n] para usarmos um caminho estável como chave (e.g., eSocial/evtTabRubrica/infoRubrica/inclusao/dadosRubrica)
+    return p.replace(/\[\d+]/g, '');
+  }
+
   init(rootName: string = 'eSocial') {
     const xml = `<?xml version="1.0" encoding="UTF-8"?><${rootName}/>`;
     this.doc = new DOMParser().parseFromString(xml, 'application/xml');
@@ -188,15 +201,17 @@ export class LiveXmlService {
       doc = this.ensureDoc();
       rootEl = doc.documentElement;
     }
-    // ignoramos qualquer índice na raiz (sempre 1)
     let cur: Element = rootEl;
+    let curPathNorm = this.normalizePath(rootEl.tagName); // "eSocial"
 
-    // demais partes com suporte a [n]
     for (let i = 1; i < parts.length; i++) {
       const { name, index } = this.parsePart(parts[i]);
-      const next = this.nthChild(doc, cur, name, index, create);
+      const next = this.nthChildOrdered(doc, cur, curPathNorm, name, index, create);
       if (!next) return null;
+
+      // atualiza ponteiros para o próximo nível
       cur = next;
+      curPathNorm = this.normalizePath(curPathNorm + '/' + name + (index ? `[${index}]` : ''));
     }
     return cur;
   }
@@ -210,27 +225,56 @@ export class LiveXmlService {
   }
 
   /** Retorna/cria o filho name[index] sob parent (Element) */
-  private nthChild(
-    doc: Document,
-    parent: Element,
-    name: string,
-    index: number,
-    create = true
-  ): Element | null {
-    const list = Array.from(parent.children).filter(c => c.tagName === name);
-    if (list.length >= index) return list[index - 1];
+private nthChildOrdered(
+  doc: Document,
+  parent: Element,
+  parentPathNorm: string,
+  name: string,
+  index: number,
+  create = true
+): Element | null {
+  const same = Array.from(parent.children).filter(c => c.tagName === name);
+  if (same.length >= index) return same[index - 1];
+  if (!create) return null;
 
-    if (!create) return null;
+  const order = this.parentOrders.get(parentPathNorm);
+  const makeOne = (): Element => {
+    const el = this.createElementSmart(doc, name);
 
-    let count = list.length;
-    while (count < index) {
-      const el = this.createElementSmart(doc, name); // <-- aqui
-      parent.appendChild(el);
-      count++;
-      if (count === index) return el;
+    // 1) se já há irmãos do MESMO nome, insira logo após o último deles
+    const lastSame = Array.from(parent.children).filter(c => c.tagName === name).pop();
+    if (lastSame) {
+      if (lastSame.nextSibling) parent.insertBefore(el, lastSame.nextSibling);
+      else parent.appendChild(el);
+      return el;
     }
-    return Array.from(parent.children).filter(c => c.tagName === name)[index - 1] ?? null;
+
+    // 2) senão, use a ordem registrada para achar o ponto de inserção
+    if (order) {
+      const myRank = order.indexOf(name);
+      if (myRank >= 0) {
+        const kids = Array.from(parent.children);
+        for (const k of kids) {
+          const r = order.indexOf(k.tagName);
+          if (r >= 0 && r > myRank) {
+            parent.insertBefore(el, k);
+            return el;
+          }
+        }
+      }
+    }
+
+    // 3) fallback: append no final
+    parent.appendChild(el);
+    return el;
+  };
+
+  // Cria quantas instâncias forem necessárias até alcançar index
+  while (Array.from(parent.children).filter(c => c.tagName === name).length < index) {
+    makeOne();
   }
+  return Array.from(parent.children).filter(c => c.tagName === name)[index - 1] ?? null;
+}
 
   public ensurePath(visualPath: string): void {
     const doc = this.ensureDoc();
