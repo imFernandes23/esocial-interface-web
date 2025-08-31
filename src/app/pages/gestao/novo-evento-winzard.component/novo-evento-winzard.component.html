@@ -2,9 +2,7 @@
         <button class="button" routerLink="/gestao">← Voltar</button>
         <button type="button" (click)="expandAll()">Expandir tudo</button>
         <button type="button" (click)="collapseAll()">Recolher tudo</button>
-        <button type="button" class="btn btn-primary" (click)="onGerarXmlConsole()">
-          Gerar XML (console)
-        </button>
+        <button type="button" class="btn" (click)="openXmlModal()">XML / Preview</button>
     </div>
 
     <h2 class="title">{{ headerTitle() }}</h2>
@@ -19,3 +17,45 @@
         Não foi possível construir a árvore do evento. Verifique se o <b>tipos.xsd</b> está presente.
       </div>
     </ng-template>
+
+<dialog #xmlDlg class="xml-dlg">
+  <form method="dialog" class="xml-dlg-body" (submit)="$event.preventDefault()">
+    <header class="xml-dlg-header">
+      <strong>Editor de XML</strong>
+      <span class="status" [class.ok]="xmlOk && requiredOk" [class.err]="!(xmlOk && requiredOk)">
+        <!-- mostra estados separados -->
+        <ng-container *ngIf="!xmlOk">XML malformado</ng-container>
+        <ng-container *ngIf="xmlOk && !requiredOk">Incompleto: {{ missingRequired.length }} obrigat&oacute;rio(s)</ng-container>
+        <ng-container *ngIf="xmlOk && requiredOk">Válido</ng-container>
+      </span>
+    </header>
+
+    <!-- wrapper com scroll -->
+    <div class="xml-scroll">
+      <textarea
+        class="xml-text"
+        [value]="xmlText"
+        (input)="onXmlInput($event)"
+        spellcheck="false"></textarea>
+
+      <!-- lista (opcional) dos que faltam -->
+      <div class="xml-issues" *ngIf="xmlOk && !requiredOk">
+        <div class="issues-title">Campos obrigatórios ausentes:</div>
+        <ul>
+          <li *ngFor="let p of missingRequired">{{ p }}</li>
+        </ul>
+      </div>
+    </div>
+
+    <footer class="xml-dlg-footer">
+      <button type="button" class="btn" (click)="loadXmlLocal()">Carregar rascunho</button>
+      <button type="button" class="btn" (click)="saveXmlLocal()">Salvar rascunho</button>
+      <span class="spacer"></span>
+      <button type="button" class="btn" (click)="downloadXml()">Baixar .xml</button>
+      <button type="button" class="btn btn-primary" [disabled]="!(xmlOk && requiredOk)" (click)="applyXmlToForm()">
+        Aplicar no formulário
+      </button>
+      <button type="button" class="btn" (click)="closeXmlModal()">Fechar</button>
+    </footer>
+  </form>
+</dialog>

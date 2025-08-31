@@ -224,45 +224,93 @@ export class LiveXmlService {
     };
   }
 
-  /** Retorna/cria o filho name[index] sob parent (Element) */
-private nthChildOrdered(
-  doc: Document,
-  parent: Element,
-  parentPathNorm: string,
-  name: string,
-  index: number,
-  create = true
-): Element | null {
-  const same = Array.from(parent.children).filter(c => c.tagName === name);
-  if (same.length >= index) return same[index - 1];
-  if (!create) return null;
+  /** Retorna o Element para um visualPath (ou null) sem criar nada */
+  public resolveElement(path: string): Element | null {
+    const doc = this.ensureDoc();
+    return this.ensureElement(doc, path, /*create*/ false);
+  }
 
-  const order = this.parentOrders.get(parentPathNorm);
-  const makeOne = (): Element => {
-    const el = this.createElementSmart(doc, name);
+  /** Conta quantas instâncias existem para '.../nome' (sem [n]) ou 0/1 se vier com [n] */
+  public count(path: string): number {
+    const doc = this.ensureDoc();
+    const parts = path.split('/').filter(Boolean);
+    if (!parts.length) return 0;
 
-    // 1) se já há irmãos do MESMO nome, insira logo após o último deles
-    const lastSame = Array.from(parent.children).filter(c => c.tagName === name).pop();
-    if (lastSame) {
-      if (lastSame.nextSibling) parent.insertBefore(el, lastSame.nextSibling);
-      else parent.appendChild(el);
-      return el;
+    const parentParts = parts.slice(0, -1);
+    const last = parts[parts.length - 1];
+    const m = last.match(/^(.+?)(?:\[(\d+)])?$/);
+    const name = m?.[1] ?? last;
+    const index = m?.[2] ? parseInt(m![2], 10) : undefined;
+
+    const parent = parentParts.length
+      ? this.ensureElement(doc, parentParts.join('/'), false)
+      : doc.documentElement;
+
+    if (!parent) return 0;
+
+    const siblings = Array.from(parent.children).filter(el => el.tagName === name);
+    if (index != null) return index <= siblings.length ? 1 : 0;
+    return siblings.length;
+  }
+
+  /** Texto do primeiro nó naquele path (ou '') */
+  public getText(path: string): string {
+    const el = this.resolveElement(path);
+    return el?.textContent?.trim() ?? '';
+  }
+
+  public validateXml(xml: string): { ok: boolean; error?: string } {
+    try {
+      const doc = new DOMParser().parseFromString(xml, 'application/xml');
+      const err = doc.querySelector('parsererror');
+      if (err) {
+        return { ok: false, error: err.textContent || 'XML inválido' };
+      }
+      return { ok: true };
+    } catch (e: any) {
+      return { ok: false, error: e?.message || 'XML inválido' };
     }
+  }
 
-    // 2) senão, use a ordem registrada para achar o ponto de inserção
-    if (order) {
-      const myRank = order.indexOf(name);
-      if (myRank >= 0) {
-        const kids = Array.from(parent.children);
-        for (const k of kids) {
-          const r = order.indexOf(k.tagName);
-          if (r >= 0 && r > myRank) {
-            parent.insertBefore(el, k);
-            return el;
+  /** Retorna/cria o filho name[index] sob parent (Element) */
+  private nthChildOrdered(
+    doc: Document,
+    parent: Element,
+    parentPathNorm: string,
+    name: string,
+    index: number,
+    create = true
+  ): Element | null {
+    const same = Array.from(parent.children).filter(c => c.tagName === name);
+    if (same.length >= index) return same[index - 1];
+    if (!create) return null;
+
+    const order = this.parentOrders.get(parentPathNorm);
+    const makeOne = (): Element => {
+      const el = this.createElementSmart(doc, name);
+
+      // 1) se já há irmãos do MESMO nome, insira logo após o último deles
+      const lastSame = Array.from(parent.children).filter(c => c.tagName === name).pop();
+      if (lastSame) {
+        if (lastSame.nextSibling) parent.insertBefore(el, lastSame.nextSibling);
+        else parent.appendChild(el);
+        return el;
+      }
+
+      // 2) senão, use a ordem registrada para achar o ponto de inserção
+      if (order) {
+        const myRank = order.indexOf(name);
+        if (myRank >= 0) {
+          const kids = Array.from(parent.children);
+          for (const k of kids) {
+            const r = order.indexOf(k.tagName);
+            if (r >= 0 && r > myRank) {
+              parent.insertBefore(el, k);
+              return el;
+            }
           }
         }
       }
-    }
 
     // 3) fallback: append no final
     parent.appendChild(el);
