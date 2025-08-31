@@ -127,6 +127,60 @@ export class XsTreeNodeComponent {
     return use === 'required' || (typeof minOccurs === 'number' && minOccurs > 0);
   }
 
+  //-----------------------------------------------------
+  // OCCURS
+  //-----------------------------------------------------
+
+  // Isolar valores por instância (já existente no seu código)
+  @Input() idPrefix: string = '';
+
+  // Para impedir recursão quando renderizarmos a MESMA árvore por instância
+  @Input() disableRepeat = false;
+
+  // Chave com prefixo (não mude se já tiver igual)
+  private keyFor(id: string) { return (this.idPrefix ? this.idPrefix : '') + id; }
+  private getVal(id: string): string { return (this as any).store?.[this.keyFor(id)] ?? ''; }
+  private setVal(id: string, v: string) { ((this as any).store ||= {})[this.keyFor(id)] = v ?? ''; }
+
+  // ------------------ occurs ------------------
+  private occ = new Map<string, number>();
+
+  private occursMeta(n: ViewNode) {
+    // fallback seguro
+    return n.meta?.occurs ?? { min: 0, max: 1 as number | 'unbounded' };
+  }
+  private initOcc(n: ViewNode) {
+    if (!this.occ.has(n.id)) {
+      const { min } = this.occursMeta(n);
+      this.occ.set(n.id, Math.max(0, Number(min || 0)));
+    }
+  }
+  occCount(n: ViewNode): number { this.initOcc(n); return this.occ.get(n.id)!; }
+  occIndexes(n: ViewNode): number[] { return Array.from({ length: this.occCount(n) }, (_, i) => i); }
+
+  canAdd(n: ViewNode): boolean {
+    const { max } = this.occursMeta(n);
+    const cur = this.occCount(n);
+    return max === 'unbounded' || cur < (max ?? 1);
+  }
+  canRemove(n: ViewNode): boolean {
+    const { min } = this.occursMeta(n);
+    const cur = this.occCount(n);
+    return cur > (min ?? 0);
+  }
+  incOcc(n: ViewNode) { if (this.canAdd(n)) this.occ.set(n.id, this.occCount(n) + 1); }
+  decOcc(n: ViewNode) { if (this.canRemove(n)) this.occ.set(n.id, this.occCount(n) - 1); }
+
+  // ------------------ repeatable? ------------------
+  /** “Repetível” = max>1 ou unbounded (e não estiver bloqueado por disableRepeat) */
+  isRepeatable(): boolean {
+    if (this.disableRepeat) return false;
+    const oc = this.node.meta?.occurs;
+    if (!oc) return false;
+    if (oc.max === 'unbounded') return true;
+    return typeof oc.max === 'number' && oc.max > 1;
+  }
+
   // ----------------------------------------------------
   // CHOICE
   // ----------------------------------------------------

@@ -6,15 +6,22 @@
 }
 :host {
   display: block;
-  margin-top: 12px;   /* espaço entre irmãos */
+  margin-top: 12px; /* espaço entre irmãos */
 }
 
 .sum {
   cursor: pointer;
   font-weight: 600;
 }
-.children { display: grid; grid-auto-rows: auto; gap: 12px; margin-top: 8px; }
-details.node + details.node { margin-top: 12px; }
+.children {
+  display: grid;
+  grid-auto-rows: auto;
+  gap: 12px;
+  margin-top: 8px;
+}
+details.node + details.node {
+  margin-top: 12px;
+}
 
 .docbox {
   margin-top: 10px;
@@ -83,18 +90,71 @@ details.node + details.node { margin-top: 12px; }
   margin-top: 10px;
 }
 
-/* nunca deixe nada expandir além da largura */
-:host, .page, .content, .node, .children { max-width: 100%; overflow-x: hidden; }
+.occ-ctrl {
+  display: inline-flex;
+  gap: 8px;
+  margin-left: 10px;
+  align-items: center;
+}
+.occ-ctrl .btn {
+  padding: 0 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #f8fafc;
+  cursor: pointer;
+}
+.occ-ctrl .btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.occ-ctrl .occ {
+  min-width: 22px;
+  text-align: center;
+  font-weight: 600;
+}
 
-/* quebra qualquer coisa longa (URIs, tokens, {placeholders}) */
-.docbox, .docbox-list, .docbox-list li, details.node, summary.sum, .enum-picker, .string-input, .number-input, .date-input {
+.instance {
+  border: 1px dashed #e5e7eb;
+  border-radius: 10px;
+  padding: 10px;
+}
+.inst-header {
+  font-size: 12px;
+  color: #6b7280;
+  margin: 6px 0 10px;
+}
+
+:host,
+.page,
+.content,
+.node,
+.children {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+.docbox,
+.docbox-list,
+.docbox-list li,
+details.node,
+summary.sum,
+.enum-picker,
+.string-input,
+.number-input,
+.date-input {
   white-space: normal;
-  overflow-wrap: anywhere;   /* força quebra mesmo sem espaços */
+  overflow-wrap: anywhere; /* força quebra mesmo sem espaços */
   word-break: break-word;
 }
 
 /* em containers flex/grid, previne expansão que gera scroll */
-* { min-width: 0; box-sizing: border-box; }
+* {
+  min-width: 0;
+  box-sizing: border-box;
+}
 
 /* opcional: evita que summary “estoure” */
-details.node > summary { overflow: hidden; text-overflow: ellipsis; }
+details.node > summary {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

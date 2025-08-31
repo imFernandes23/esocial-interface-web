@@ -1,115 +1,153 @@
-<!-- Se for wrapper, não mostra caixa; apenas renderiza filhos -->
-<ng-container *ngIf="isWrapper(); else normalBox">
-  <ng-container *ngFor="let c of node.children">
-    <app-xs-tree-node [node]="c"></app-xs-tree-node>
-  </ng-container>
+<!-- REPETIDOR: se o nó pode ocorrer mais de uma vez -->
+<ng-container *ngIf="isRepeatable(); else notRepeatable">
+  <details class="node" open>
+    <summary class="sum">
+      <span class="name">{{ node.name || node.kind }}</span>
+
+      <span class="occ-ctrl">
+        <button type="button" class="btn" (click)="decOcc(node)" [disabled]="!canRemove(node)">−</button>
+        <span class="occ">{{ occCount(node) }}</span>
+        <button type="button" class="btn" (click)="incOcc(node)" [disabled]="!canAdd(node)">+</button>
+      </span>
+    </summary>
+
+    <div class="children" *ngIf="occCount(node) > 0">
+      <ng-container *ngFor="let i of occIndexes(node); let idx = index">
+        <div class="instance">
+          <div class="inst-header">Instância {{ idx + 1 }}</div>
+
+          <!-- Renderiza a MESMA árvore, mas com prefixo e repeat desabilitado -->
+          <app-xs-tree-node
+            [node]="node"
+            [idPrefix]="idPrefix + node.id + '[' + idx + ']/'"
+            [disableRepeat]="true">
+          </app-xs-tree-node>
+        </div>
+      </ng-container>
+    </div>
+  </details>
 </ng-container>
 
-<ng-template #normalBox>
-  <details class="node" open>
-    <summary class="sum"><span class="name">{{ node.name || node.kind }}</span></summary>
+<!-- NÃO REPETÍVEL: usa o render normal (seu HTML atual) -->
+<ng-template #notRepeatable>
+  <ng-container [ngTemplateOutlet]="renderSelf"></ng-container>
+</ng-template>
 
-    <!-- documentação do próprio nó -->
-    <div class="docbox" *ngIf="node.meta?.docs?.length">
-      <ul class="docbox-list">
-        <li *ngFor="let d of node.meta?.docs">{{ d }}</li>
-      </ul>
-    </div>
+<!-- TUDO o que você já tinha (wrapper/choice/enum/número/date/string/filhos) vai aqui -->
+<ng-template #renderSelf>
 
-    <!-- 1) CHOICE -->
-    <ng-container *ngIf="isChoice(); else notChoice">
-      <div class="choice-picker">
-        <label>Escolha uma opção:</label>
-        <select [value]="selectedChoiceId()" (change)="onChoose(($any($event.target).value))">
-          <option value="" disabled>— selecione —</option>
-          <option *ngFor="let opt of node.children" [value]="opt.id">{{ opt.name || 'opção' }}</option>
-        </select>
-      </div>
-      <div class="children" *ngIf="selectedChild() as chosen">
-        <app-xs-tree-node [node]="chosen"></app-xs-tree-node>
-      </div>
+  <!-- Se for wrapper, não mostra caixa; apenas renderiza filhos -->
+  <ng-container *ngIf="isWrapper(); else normalBox">
+    <ng-container *ngFor="let c of node.children">
+      <app-xs-tree-node [node]="c" [idPrefix]="idPrefix"></app-xs-tree-node>
     </ng-container>
-
-<!-- 2) NÃO-CHOICE -->
-<ng-template #notChoice>
-  <!-- ENUM TEM PRIORIDADE -->
-  <ng-container *ngIf="isEnumList(); else maybeNumber">
-    <div class="enum-picker">
-      <label>Selecionar:</label>
-      <select [value]="selectedEnum()" (change)="onChooseEnum(($any($event.target).value ))">
-        <option value="" disabled>— selecione —</option>
-        <option *ngFor="let opt of enumOptions()" [value]="opt.name">
-          {{ enumLabel(opt) }}
-        </option>
-      </select>
-    </div>
   </ng-container>
 
-<!-- NÚMERO (antes da string) -->
-<ng-template #maybeNumber>
-  <div class="number-input" *ngIf="isNumericInput(); else maybeDate">
-    <input
-      type="number"
-      [value]="numberValue()"
-      (input)="onNumber(($any($event.target).value ))"
-      [attr.min]="minAttr()"
-      [attr.max]="maxAttr()"
-      [attr.step]="stepAttr()"
-      class="text"
-      [class.invalid]="numberError()"
-      [placeholder]="numberHint() || 'número...'"
-      inputmode="decimal"
-    />
-    <div class="hint" *ngIf="numberHint()">{{ numberHint() }}</div>
-    <div class="error" *ngIf="numberError()">{{ numberError() }}</div>
-  </div>
-</ng-template>
+  <ng-template #normalBox>
+    <details class="node" open>
+      <summary class="sum"><span class="name">{{ node.name || node.kind }}</span></summary>
 
-<!-- DATA (xs:date) — só dispara quando o nó ATUAL é xs:date -->
-<ng-template #maybeDate>
-  <div class="date-input" *ngIf="isDateHere(); else maybeString">
-    <!-- Se preferir digitação livre, troque type="date" por type="text" e mantenha a validação acima -->
-    <input
-      type="date"
-      [value]="dateValue()"
-      (input)="onDate(($any($event.target).value ))"
-      [attr.min]="dateMinAttr()"
-      [attr.max]="dateMaxAttr()"
-      class="text"
-      [class.invalid]="dateError()"
-      placeholder="AAAA-MM-DD"
-    />
-    <div class="hint" *ngIf="dateHint()">{{ dateHint() }}</div>
-    <div class="error" *ngIf="dateError()">{{ dateError() }}</div>
-  </div>
-</ng-template>
-
-  <!-- STRING (fallback) -->
-  <ng-template #maybeString>
-    <div class="string-input" *ngIf="isStringInput(); else regularChildren">
-      <input
-        type="text"
-        [value]="textValue()"
-        (input)="onText(($any($event.target).value ))"
-        [attr.minlength]="exactLen() ?? minLen() ?? null"
-        [attr.maxlength]="exactLen() ?? maxLen() ?? null"
-        [attr.pattern]="htmlPattern()"
-        class="text"
-        [class.invalid]="textError()"
-        [placeholder]="hint() || 'digite...'"
-      />
-      <div class="hint" *ngIf="hint()">{{ hint() }}</div>
-      <div class="error" *ngIf="textError()">{{ textError() }}</div>
-    </div>
-
-    <!-- filhos padrão -->
-    <ng-template #regularChildren>
-      <div class="children" *ngIf="node.children?.length">
-        <app-xs-tree-node *ngFor="let c of node.children" [node]="c"></app-xs-tree-node>
+      <!-- documentação -->
+      <div class="docbox" *ngIf="node.meta?.docs?.length">
+        <ul class="docbox-list">
+          <li *ngFor="let d of node.meta?.docs">{{ d }}</li>
+        </ul>
       </div>
-    </ng-template>
-  </ng-template>
-</ng-template>
 
-  </details>
+      <!-- 1) CHOICE -->
+      <ng-container *ngIf="isChoice(); else notChoice">
+        <div class="choice-picker">
+          <label>Escolha uma opção:</label>
+          <select [value]="selectedChoiceId()" (change)="onChoose(($any($event.target).value))">
+            <option value="" disabled>— selecione —</option>
+            <option *ngFor="let opt of node.children" [value]="opt.id">{{ opt.name || 'opção' }}</option>
+          </select>
+        </div>
+        <div class="children" *ngIf="selectedChild() as chosen">
+          <app-xs-tree-node [node]="chosen" [idPrefix]="idPrefix"></app-xs-tree-node>
+        </div>
+      </ng-container>
+
+      <!-- 2) NÃO-CHOICE -->
+      <ng-template #notChoice>
+        <!-- ENUM tem prioridade -->
+        <ng-container *ngIf="isEnumList(); else maybeNumber">
+          <div class="enum-picker">
+            <label>Selecionar:</label>
+            <select [value]="selectedEnum()" (change)="onChooseEnum(($any($event.target).value ))">
+              <option value="" disabled>— selecione —</option>
+              <option *ngFor="let opt of enumOptions()" [value]="opt.name">
+                {{ enumLabel(opt) }}
+              </option>
+            </select>
+          </div>
+        </ng-container>
+
+        <!-- NÚMERO -->
+        <ng-template #maybeNumber>
+          <div class="number-input" *ngIf="isNumericInput(); else maybeDate">
+            <input
+              type="number"
+              [value]="numberValue()"
+              (input)="onNumber(($any($event.target).value ))"
+              [attr.min]="minAttr()"
+              [attr.max]="maxAttr()"
+              [attr.step]="stepAttr()"
+              class="text"
+              [class.invalid]="numberError()"
+              [placeholder]="numberHint() || 'número...'"
+              inputmode="decimal"
+            />
+            <div class="hint" *ngIf="numberHint()">{{ numberHint() }}</div>
+            <div class="error" *ngIf="numberError()">{{ numberError() }}</div>
+          </div>
+        </ng-template>
+
+        <!-- DATA (xs:date) -->
+        <ng-template #maybeDate>
+          <div class="date-input" *ngIf="isDateHere(); else maybeString">
+            <input
+              type="date"
+              [value]="dateValue()"
+              (input)="onDate(($any($event.target).value ))"
+              [attr.min]="dateMinAttr()"
+              [attr.max]="dateMaxAttr()"
+              class="text"
+              [class.invalid]="dateError()"
+              placeholder="AAAA-MM-DD"
+            />
+            <div class="hint" *ngIf="dateHint()">{{ dateHint() }}</div>
+            <div class="error" *ngIf="dateError()">{{ dateError() }}</div>
+          </div>
+        </ng-template>
+
+        <!-- STRING -->
+        <ng-template #maybeString>
+          <div class="string-input" *ngIf="isStringInput(); else regularChildren">
+            <input
+              type="text"
+              [value]="textValue()"
+              (input)="onText(($any($event.target).value ))"
+              [attr.minlength]="exactLen() ?? minLen() ?? null"
+              [attr.maxlength]="exactLen() ?? maxLen() ?? null"
+              [attr.pattern]="htmlPattern()"
+              class="text"
+              [class.invalid]="textError()"
+              [placeholder]="hint() || 'digite...'"
+            />
+            <div class="hint" *ngIf="hint()">{{ hint() }}</div>
+            <div class="error" *ngIf="textError()">{{ textError() }}</div>
+          </div>
+
+          <!-- filhos padrão -->
+          <ng-template #regularChildren>
+            <div class="children" *ngIf="node.children?.length">
+              <app-xs-tree-node *ngFor="let c of node.children" [node]="c" [idPrefix]="idPrefix"></app-xs-tree-node>
+            </div>
+          </ng-template>
+        </ng-template>
+      </ng-template>
+
+    </details>
+  </ng-template>
 </ng-template>
