@@ -12,7 +12,7 @@
     </summary>
 
     <div class="children" *ngIf="occCount(node) > 0">
-      <ng-container *ngFor="let i of occIndexes(node); let idx = index">
+      <ng-container *ngFor="let _ of occIndexes(node); let idx = index; trackBy: trackByIndex">
         <div class="instance">
           <div class="inst-header">Instância {{ idx + 1 }}</div>
 

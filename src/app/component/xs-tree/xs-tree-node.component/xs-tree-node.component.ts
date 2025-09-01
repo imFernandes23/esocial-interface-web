@@ -18,7 +18,11 @@ export class XsTreeNodeComponent implements OnInit, OnChanges{
 
   private liveBoundPath?: string;
 
-  constructor( private liveXml: LiveXmlService, private destroyRef: DestroyRef ){}
+  constructor( 
+    private liveXml: LiveXmlService,
+    private destroyRef: DestroyRef,
+    private form: DynamicFormStateService
+  ){}
 
   ngOnInit(): void {
     this.bindToLiveXmlIfReady();
@@ -30,32 +34,57 @@ export class XsTreeNodeComponent implements OnInit, OnChanges{
     }
   }
 
-  private form = inject(DynamicFormStateService);
+  // private form = inject(DynamicFormStateService);
 
   // ----------------------------------------------------
   // Utils básicos
   // ----------------------------------------------------
 
-  private readFormOnce(): string {
-    const key = this.keyFor(this.node.id);
-    if (this.isEnumList()) return this.form.getEnum(key) ?? '';
-    return this.form.getText(key) ?? '';
+  trackByIndex(i: number) { return i; }
+
+  private parentBasePath(): string {
+    return this.vPrefix || '';
   }
 
-  private applyToFormFromXml(v: string): void {
-    const key = this.keyFor(this.node.id);
-    if (this.isEnumList()) this.form.setEnum(key, v ?? '');
-    else this.form.setText(key, v ?? '');
+  private setOccTo(target: number): void {
+    const cur = this.occCount(this.node);           // já existe no componente
+    if (target === cur) return;
+    if (target > cur) {
+      for (let i = cur; i < target; i++) this.incOcc(this.node);
+    } else {
+      for (let i = cur; i > target; i--) this.decOcc(this.node);
+    }
+  }
+
+  private syncOccurrencesFromXml(): void {
+    if (!this.isRepeatable() || !this.node?.name) return;
+    const base = this.parentBasePath();
+    const want = this.liveXml.count(`${base}/${this.node.name}`);
+    // respeita min/max do XSD
+    const min = this.node.meta?.occurs?.min ?? 0;
+    const max = this.node.meta?.occurs?.max;
+    let target = Math.max(want, min);
+    if (typeof max === 'number') target = Math.min(target, max);
+    this.setOccTo(target);
+  }
+
+  private readFormOnce(): string {
+    return this.isEnumList() ? (this.form.getEnum(this.fieldKey()) ?? '') 
+                            : (this.form.getText(this.fieldKey()) ?? '');
+  }
+
+  private applyToFormFromXml(v: string | null): void {
+    if (this.isEnumList()) this.form.setEnum(this.fieldKey(), v ?? '');
+    else this.form.setText(this.fieldKey(), v ?? '');
   }
 
   private bindToLiveXmlIfReady(): void {
     const pathV = this.getVisualPath();
     if (!pathV) return;
     if (this.liveBoundPath === pathV) return;
-
     this.liveBoundPath = pathV;
 
-    // (A) CRIAR TAG VAZIA ASSIM QUE O CAMPO EXISTE NO FORM
+    // (a) CRIAR TAG VAZIA ASSIM QUE O CAMPO EXISTE NO FORM
     const isElement = (this.node?.kind || '').toLowerCase() === 'element';
     const occMin = this.node.meta?.occurs?.min ?? 1;
     if (isElement && occMin > 0) {
@@ -74,26 +103,57 @@ export class XsTreeNodeComponent implements OnInit, OnChanges{
       }
     }
 
-    // (B) ouvir XML -> aplicar no form
+    // (c) ouvir XML -> aplicar no form
     this.liveXml.observe(pathV)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(val => {
         if (val !== this.readFormOnce()) this.applyToFormFromXml(val);
       });
 
-    // (C) semear XML com o que o form já tiver
+    // (d) semear XML com o que o form já tiver
     const current = this.readFormOnce();
     if ((current ?? '').trim() !== '') {
       this.liveXml.setValue(pathV, current);
+    }
+
+    // (e) assinar choice
+    if (this.isChoice?.() && this.node?.children?.length) {
+      const base = this.choiceBasePath();
+
+      for (const opt of this.node.children) {
+        if ((opt.kind || '').toLowerCase() !== 'element' || !opt.name) continue;
+        const childPath = `${base}/${opt.name}`;
+
+        this.liveXml.observe(childPath)
+          .pipe(takeUntilDestroyed(this.destroyRef))
+          .subscribe(() => {
+            this.syncChoiceFromXml();
+          });
+      }
+
+      // faz uma leitura inicial (import já aplicado, ou XML já tinha dados)
+      this.syncChoiceFromXml();
+    }
+
+    // (f) assinar ocorrencias
+
+    if (this.isRepeatable() && this.node?.name) {
+      const base = this.parentBasePath();
+      const firstInstancePath = `${base}/${this.node.name}`; // sem [n] → refere-se à [1]
+
+      this.liveXml.observe(firstInstancePath)
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe(() => {
+          this.syncOccurrencesFromXml();
+        });
+
+      // rodada inicial (caso o XML já tenha vindo do modal)
+      this.syncOccurrencesFromXml();
     }
   }
 
   //====================================================
   lc = (s?: string) => (s || '').toLowerCase();
-
-  private pathFor(): string {
-    return this.keyFor(this.node.id);
-  }
 
   /** logger padronizado */
   private logUpdate(pathVisual: string, value: string, valid: boolean) {
@@ -107,6 +167,16 @@ export class XsTreeNodeComponent implements OnInit, OnChanges{
   private elName(): string { return this.node?.name || ''; }
 
   /** caminho VISUAL do elemento atual */
+
+  private fieldKey(): string {
+    // para leaf element, getVisualPath() já traz .../nome[n]
+    return this.getVisualPath();
+  }
+
+  private choiceKey(): string {
+    // vPrefix já contém o [n] do pai quando for instância; node.id evita colisão entre múltiplos choices no mesmo nível
+    return `${this.vPrefix || ''}::choice@${this.node.id}`;
+  }
 
   public getVisualPath(): string {
     const isEl = (this.node?.kind || '').toLowerCase() === 'element';
@@ -169,6 +239,8 @@ export class XsTreeNodeComponent implements OnInit, OnChanges{
     return this.lc(base);
   }
 
+
+
   /** facets de string efetivas + patterns coletados em toda a cadeia */
   private effectiveStringFacets() {
     let length: number | undefined;
@@ -227,6 +299,36 @@ export class XsTreeNodeComponent implements OnInit, OnChanges{
     return use === 'required' || (typeof minOccurs === 'number' && minOccurs > 0);
   }
 
+  private choiceBasePath(): string {
+    return this.vPrefix || '';
+  }
+
+  private syncChoiceFromXml(): void {
+  if (!this.isChoice?.() || !this.node?.children?.length) return;
+
+  const base = this.choiceBasePath();
+  const choiceKey = this.keyFor(this.node.id); // sua chave lógica do choice
+
+  // percorre as opções do choice em ordem
+  for (const opt of this.node.children) {
+    if ((opt.kind || '').toLowerCase() !== 'element' || !opt.name) continue;
+    const childPath = `${base}/${opt.name}`;
+
+    // getValue() retorna null se o elemento não existe;
+    // retorna '' se existe mas não tem texto. Para presença, basta !== null.
+    const present = this.liveXml.getValue(childPath) !== null;
+    if (present) {
+      this.form.setChoice(this.choiceKey(), opt.id);  // seleciona esta opção
+      return;
+    }
+  }
+
+  // nenhuma opção presente -> limpar a seleção
+  this.form.setChoice(choiceKey, '');
+  const groupPrefix = `${base}/${this.node.name}`;
+  setTimeout(() => this.liveXml.reemit(groupPrefix), 0);
+}
+
   //-----------------------------------------------------
   // OCCURS
   //-----------------------------------------------------
@@ -239,8 +341,8 @@ export class XsTreeNodeComponent implements OnInit, OnChanges{
 
   // Chave com prefixo (não mude se já tiver igual)
   private keyFor(id: string) { return (this.idPrefix ? this.idPrefix : '') + id; }
-  private getVal(id: string): string { return (this as any).store?.[this.keyFor(id)] ?? ''; }
-  private setVal(id: string, v: string) { ((this as any).store ||= {})[this.keyFor(id)] = v ?? ''; }
+  // private getVal(id: string): string { return (this as any).store?.[this.keyFor(id)] ?? ''; }
+  // private setVal(id: string, v: string) { ((this as any).store ||= {})[this.keyFor(id)] = v ?? ''; }
 
   // ------------------ occurs ------------------
   private occ = new Map<string, number>();
@@ -364,10 +466,10 @@ export class XsTreeNodeComponent implements OnInit, OnChanges{
   isEnumList(): boolean { return this.enumOptions().length > 0; }
 
 
-  selectedEnum = computed(() => this.form.getEnum(this.keyFor(this.node.id)) ?? '');
+  selectedEnum = computed(() => this.form.getEnum(this.fieldKey()) ?? '');
   onChooseEnum(val: string) {
     const value = (val ?? '').trim();
-    this.form.setEnum(this.keyFor(this.node.id), value);
+    this.form.setEnum(this.fieldKey(), value);
     const required = this.isRequiredNode();
     const allowed = this.enumOptions().map(o => o.name);
     const valid = (value !== '' || !required) && (value === '' || allowed.includes(value));
@@ -399,10 +501,10 @@ export class XsTreeNodeComponent implements OnInit, OnChanges{
     return (k === 'element' || k === 'simpletype') && base.includes('string');
   }
 
-  textValue = computed(() => this.form.getText(this.keyFor(this.node.id)));
+  textValue = computed(() => this.form.getText(this.fieldKey()));
   onText(v: string) {
     const value = (v ?? '').trim();
-    this.form.setText(this.keyFor(this.node.id), value);   // continua usando o “path lógico”
+    this.form.setText(this.fieldKey(), value);   // continua usando o “path lógico”
     const valid = this.textError() === '';
     const pathV = this.getVisualPath();
     this.liveXml.setValue(pathV, value)
@@ -486,10 +588,10 @@ hint(): string {
            this.numericBases.some(b => base.endsWith(b));
   }
 
-  numberValue = computed(() => this.form.getText(this.keyFor(this.node.id)));
+  numberValue = computed(() => this.form.getText(this.fieldKey()));
   onNumber(v: string) {
     const value = (v ?? '').trim();
-    this.form.setText(this.keyFor(this.node.id), value);
+    this.form.setText(this.fieldKey(), value);
     const valid = this.numberError() === '';
     const pathV = this.getVisualPath();
     this.liveXml.setValue(pathV, value)
@@ -624,7 +726,7 @@ numberError = computed(() => {
 
   onDate(v: string) {
     const value = (v ?? '').trim();
-    this.form.setText(this.keyFor(this.node.id), value);
+    this.form.setText(this.fieldKey(), value);
     const valid = this.dateError() === '';
     const pathV = this.getVisualPath();
     this.liveXml.setValue(pathV, value);

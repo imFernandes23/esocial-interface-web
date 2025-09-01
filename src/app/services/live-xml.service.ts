@@ -9,6 +9,7 @@ export class LiveXmlService {
   // Mapa de ordem de filhos por caminho do pai (caminho “visual”, sem [n])
   private parentOrders = new Map<string, string[]>();
 
+
   /** Registra a ordem dos filhos (nomes qualificados) de um caminho de pai */
   public registerOrder(parentVisualPath: string, order: string[]) {
     this.parentOrders.set(this.normalizePath(parentVisualPath), order.slice());
@@ -18,6 +19,27 @@ export class LiveXmlService {
     // remove [n] para usarmos um caminho estável como chave (e.g., eSocial/evtTabRubrica/infoRubrica/inclusao/dadosRubrica)
     return p.replace(/\[\d+]/g, '');
   }
+
+  public reemit(prefix?: string): void {
+    for (const [p, subj] of this.pathSubjects.entries()) {
+      if (!prefix || p.startsWith(prefix)) {
+        subj.next(this.getValue(p) ?? ''); // <- usa seu getValue
+      }
+    }
+  }
+
+  private emitAll(): void {
+    for (const [p, subj] of this.pathSubjects.entries()) {
+      subj.next(this.getValue(p) ?? '');
+    }
+  }
+
+  // private emitAllForExistingSubjects() {
+  //   for (const [p, subj] of this.pathSubjects.entries()) {
+  //     // getValue não cria nós; só lê
+  //     subj.next(this.getValue(p) ?? '');
+  //   }
+  // }
 
   init(rootName: string = 'eSocial') {
     const xml = `<?xml version="1.0" encoding="UTF-8"?><${rootName}/>`;
@@ -143,6 +165,8 @@ export class LiveXmlService {
       }
     };
     walk(root, root.tagName);
+    this.emitAll();
+    // this.emitAllForExistingSubjects();
   }
 
   // ===== Helpers =====
@@ -232,25 +256,25 @@ export class LiveXmlService {
 
   /** Conta quantas instâncias existem para '.../nome' (sem [n]) ou 0/1 se vier com [n] */
   public count(path: string): number {
-    const doc = this.ensureDoc();
+    if (!this.doc) return 0;
     const parts = path.split('/').filter(Boolean);
     if (!parts.length) return 0;
 
-    const parentParts = parts.slice(0, -1);
+    // resolve pai
+    let el: Element | null = this.doc.documentElement;
+    if (!el || el.tagName !== parts[0]) return 0;
+
+    for (let i = 1; i < parts.length - 1; i++) {
+      const seg = parts[i].replace(/\[\d+]/, '');
+      const kids: any = Array.from(el!.children).filter(e => e.tagName === seg);
+      if (kids.length === 0) return 0;
+      el = kids[0];
+    }
+    if (!el) return 0;
+
     const last = parts[parts.length - 1];
-    const m = last.match(/^(.+?)(?:\[(\d+)])?$/);
-    const name = m?.[1] ?? last;
-    const index = m?.[2] ? parseInt(m![2], 10) : undefined;
-
-    const parent = parentParts.length
-      ? this.ensureElement(doc, parentParts.join('/'), false)
-      : doc.documentElement;
-
-    if (!parent) return 0;
-
-    const siblings = Array.from(parent.children).filter(el => el.tagName === name);
-    if (index != null) return index <= siblings.length ? 1 : 0;
-    return siblings.length;
+    const seg = last.replace(/\[\d+]/, '');
+    return Array.from(el.children).filter(e => e.tagName === seg).length;
   }
 
   /** Texto do primeiro nó naquele path (ou '') */
@@ -331,50 +355,5 @@ export class LiveXmlService {
     this.ensureElement(doc, elementPath, /*create*/ true);
   }
 
-private prettyXml(xml: string): string {
-  try {
-    const doc = new DOMParser().parseFromString(xml, 'application/xml');
-    const lines: string[] = ['<?xml version="1.0" encoding="UTF-8"?>'];
 
-    const pad = (n: number) => '  '.repeat(n);
-
-    const walk = (el: Element, depth: number) => {
-      const attrs = Array.from(el.attributes)
-        .map(a => `${a.name}="${a.value}"`).join(' ');
-      const open = attrs ? `<${el.tagName} ${attrs}>` : `<${el.tagName}>`;
-
-      // filtra textos vazios
-      const kids = Array.from(el.childNodes).filter(n => {
-        if (n.nodeType !== Node.TEXT_NODE) return true;
-        return (n.nodeValue ?? '').trim() !== '';
-      });
-
-      if (kids.length === 0) {
-        lines.push(`${pad(depth)}${open.replace('>', '/>')}`);
-        return;
-      }
-
-      if (kids.length === 1 && kids[0].nodeType === Node.TEXT_NODE) {
-        const t = (kids[0].nodeValue ?? '').trim();
-        lines.push(`${pad(depth)}${open}${t}</${el.tagName}>`);
-        return;
-      }
-
-      lines.push(`${pad(depth)}${open}`);
-      for (const k of kids) {
-        if (k.nodeType === Node.ELEMENT_NODE) {
-          walk(k as Element, depth + 1);
-        } else if (k.nodeType === Node.TEXT_NODE) {
-          lines.push(`${pad(depth + 1)}${(k.nodeValue ?? '').trim()}`);
-        }
-      }
-      lines.push(`${pad(depth)}</${el.tagName}>`);
-    };
-
-    walk(doc.documentElement, 0);
-    return lines.join('\n');
-  } catch {
-    return xml;
-  }
-}
 }
