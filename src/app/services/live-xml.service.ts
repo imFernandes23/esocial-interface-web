@@ -28,6 +28,7 @@ export class LiveXmlService {
     }
   }
 
+  
   private emitAll(): void {
     for (const [p, subj] of this.pathSubjects.entries()) {
       subj.next(this.getValue(p) ?? '');
@@ -44,6 +45,10 @@ export class LiveXmlService {
   init(rootName: string = 'eSocial') {
     const xml = `<?xml version="1.0" encoding="UTF-8"?><${rootName}/>`;
     this.doc = new DOMParser().parseFromString(xml, 'application/xml');
+
+    this.ensureDsXmlns();           // <- aqui
+    (this as any).emitAll?.();
+    (this as any).changed$?.next?.(((this as any).changed$?.value ?? 0) + 1);
   }
 
   private ensureDoc(): Document {
@@ -57,6 +62,24 @@ export class LiveXmlService {
 
   observe(path: string): Observable<string> {
     return this.subjectFor(path).asObservable();
+  }
+
+  private ensureDsXmlns(): void {
+    if (!this.doc) return;
+
+    const DS_NS = 'http://www.w3.org/2000/09/xmldsig#';
+    const root = this.doc.documentElement;
+    if (!root) return;
+
+    // Há algum elemento no namespace DS (com ou sem prefixo “ds”)?
+    const hasDsElems =
+      this.doc.getElementsByTagNameNS(DS_NS, '*').length > 0 ||
+      // fallback caso algum parser não suporte bem getElementsByTagNameNS
+      this.doc.getElementsByTagName('ds:Signature').length > 0;
+
+    if (hasDsElems && !root.hasAttribute('xmlns:ds')) {
+      root.setAttribute('xmlns:ds', DS_NS);
+    }
   }
 
   getValue(path: string): string {
@@ -85,6 +108,7 @@ export class LiveXmlService {
 
   serialize(pretty = true): string {
     const doc = this.ensureDoc();
+    this.ensureDsXmlns();
     if (!pretty) return new XMLSerializer().serializeToString(doc);
     return this.prettyFromDoc(doc);
   }
@@ -348,12 +372,83 @@ export class LiveXmlService {
   return Array.from(parent.children).filter(c => c.tagName === name)[index - 1] ?? null;
 }
 
-  public ensurePath(visualPath: string): void {
-    const doc = this.ensureDoc();
-    const { attr, elementPath } = this.splitAttr(visualPath);
-    if (attr) return; // por enquanto só elementos
-    this.ensureElement(doc, elementPath, /*create*/ true);
+  /** Retorna o Element por um path visual (ex.: A/B/C[2]); null se não existir. */
+  public getElement(visualPath: string): Element | null {
+    if (!this.doc) return null;
+    const parts = visualPath.split('/').filter(Boolean);
+    if (!parts.length) return null;
+
+    let cur: Element | null = this.doc.documentElement;
+    if (!cur || cur.tagName !== parts[0]) return null;
+
+    for (let i = 1; i < parts.length; i++) {
+      const seg = parts[i];
+      const m = seg.match(/^(.+?)(?:\[(\d+)])?$/);
+      const name = m?.[1] ?? seg;
+      const idx  = m?.[2] ? parseInt(m![2], 10) : 1;
+      const kids: any = Array.from(cur.children).filter(e => e.tagName === name);
+      cur = kids[idx - 1] ?? null;
+      if (!cur) return null;
+    }
+    return cur;
   }
 
+/** Garante o caminho (ex.: A/B/C[2]) e retorna o último Element. */
+  public ensurePath(visualPath: string): Element {
+    if (!this.doc) throw new Error('XML não inicializado.');
+    const parts = visualPath.split('/').filter(Boolean);
+    if (!parts.length) throw new Error('Path vazio.');
 
+    // raiz
+    if (!this.doc.documentElement) {
+      const root = this.doc.createElement(parts[0]);
+      this.doc.appendChild(root);
+    } else if (this.doc.documentElement.tagName !== parts[0]) {
+      // se a raiz não bate, cria uma nova raiz simples
+      const root = this.doc.createElement(parts[0]);
+      this.doc.replaceChild(root, this.doc.documentElement);
+    }
+
+    let cur: Element = this.doc.documentElement!;
+    for (let i = 1; i < parts.length; i++) {
+      const seg = parts[i];
+      const m = seg.match(/^(.+?)(?:\[(\d+)])?$/);
+      const name = m?.[1] ?? seg;
+      const idx  = m?.[2] ? parseInt(m![2], 10) : 1;
+
+      let kids = Array.from(cur.children).filter(e => e.tagName === name);
+      while (kids.length < idx) {
+        const ne = this.doc.createElement(name);
+        cur.appendChild(ne);
+        kids = Array.from(cur.children).filter(e => e.tagName === name);
+      }
+      cur = kids[idx - 1];
+    }
+    return cur;
+  }
+
+  /** Remove filhos 'options' diferentes de 'chosen' e garante o escolhido. */
+  public setChoice(basePath: string, options: string[], chosen: string | null): void {
+    const parent = this.getElement(basePath) ?? this.ensurePath(basePath);
+
+    // 1) remove ramos concorrentes
+    for (const c of Array.from(parent.children)) {
+      if (options.includes(c.tagName) && c.tagName !== chosen) {
+        parent.removeChild(c);
+      }
+    }
+    // 2) cria o escolhido, se houver e se faltar
+    if (chosen) {
+      const has = Array.from(parent.children).some(e => e.tagName === chosen);
+      if (!has) parent.appendChild(this.doc!.createElement(chosen));
+    }
+
+    // 3) notificar observadores já registrados (se você usa algum mapa de watchers)
+    if (typeof (this as any).emitAll === 'function') {
+      (this as any).emitAll();
+    }
+    if ((this as any).changed$?.next) {
+      (this as any).changed$.next(((this as any).changed$.value ?? 0) + 1);
+    }
+  }
 }

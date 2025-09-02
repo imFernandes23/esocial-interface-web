@@ -201,7 +201,7 @@ export class XsTreeNodeComponent implements OnInit, OnChanges{
     const k = this.lc(n.kind);
     const name = n.name || '';
     const wrapperKinds = [
-      'schema','complextype','sequence','simpletype','restriction','all','group',
+      'schema','complextype','sequence','simpletype','restriction','all','group','Signature',
       // facets
       'pattern','length','minlength','maxlength',
       'mininclusive','maxinclusive','minexclusive','maxexclusive',
@@ -392,9 +392,23 @@ export class XsTreeNodeComponent implements OnInit, OnChanges{
   onChoose(childId: string) {
     this.form.setChoice(this.keyFor(this.node.id), childId);
     this.logUpdate(this.getVisualPath() + ' [choice]', childId, !!childId);
+
+    const base = this.choiceBasePath();
+    const names = (this.node.children || [])
+      .filter(c => !!c?.name)
+      .map(c => c.name!);
+
+    const chosenName =
+      (this.node.children || []).find(c => c.id === childId && c.name)?.name ?? null;
+
+    this.liveXml.setChoice(base, names, chosenName);
   }
 
   selectedChild = computed<ViewNode | null>(() => {
+
+    // const id = this.form.getChoice(this.choiceKey()) ?? '';
+    // if (!id || !this.node?.children?.length) return null;
+    // return this.node.children.find(c => c.id === id) ?? null;
     const id = this.selectedChoiceId();
     if (!id) {
       if (this.isChoice() && this.node.children?.length === 1) {
