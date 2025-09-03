@@ -45,9 +45,9 @@ dialog.xml-dlg{
 }
 .xml-dlg-header .status{margin-left:auto;font-size:.9rem}
 .xml-dlg-header .status.ok{color:#059669}.xml-dlg-header .status.err{color:#dc2626}
-.xml-scroll{overflow:auto;background:#0b1020; height: 100%;}
+.xml-scroll{overflow:auto;background:#0b1020}
 .xml-text{
-  display:block;width:100%;height:100%; /* ocupa bem o espaço */
+  display:block;width:100%;height:60vh; /* ocupa bem o espaço */
   border:0;outline:0;resize:none;box-sizing:border-box;
   padding:12px 16px; color:#e6edf3; background:#0b1020;
   font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace;
