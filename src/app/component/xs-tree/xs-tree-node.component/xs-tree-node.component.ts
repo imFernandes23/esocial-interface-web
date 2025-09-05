@@ -1,4 +1,4 @@
-import { Component, computed, DestroyRef, inject, Input, OnChanges, OnInit, SimpleChanges } from '@angular/core';
+import { Component, computed, DestroyRef, EventEmitter, inject, Input, OnChanges, OnInit, Output, SimpleChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ViewNode } from '../../../shared/models/schema-models';
 import { DynamicFormStateService } from '../../../services/dynamic-form-state.service';
@@ -20,6 +20,7 @@ export class XsTreeNodeComponent implements OnInit, OnChanges {
   @Input() idPrefix: string = '';      // ok manter, mas não usamos mais para chave
   @Input() disableRepeat = false;
   @Input() lite = false;
+  @Output() formChange = new EventEmitter<any>()
 
   // -------------------- Injeções --------------------
   private form = inject(DynamicFormStateService);
@@ -34,6 +35,31 @@ export class XsTreeNodeComponent implements OnInit, OnChanges {
   }
 
   // -------------------- Helpers básicos --------------------
+
+  private emitFormUpdate(pathVisual: string, value: string, valid: boolean): any {
+    console.groupCollapsed('[field:update]');
+    console.log('path  :', pathVisual);
+    console.log('value :', value);
+    console.log('valid :', valid);
+    console.groupEnd();
+
+    const snapshot = this.getFormSnapshot();
+    this.formChange.emit(snapshot);   // se ninguém ouvir, não tem problema
+    return snapshot;
+  }
+
+  /** tenta extrair o “snapshot” do serviço (pega o que existir) */
+  private getFormSnapshot(): any {
+    const f: any = this.form as any;
+    if (typeof f.dump === 'function')     return f.dump();
+    if (typeof f.snapshot === 'function') return f.snapshot();
+    if (typeof f.toJSON === 'function')   return f.toJSON();
+    if ('value' in f)                     return f.value;
+    if (typeof f.getAll === 'function')   return f.getAll();
+    // fallback: algo que não quebre
+    return { warning: 'Snapshot não disponível; implemente dump()/snapshot()/toJSON()/value no DynamicFormStateService.' };
+  }
+
   trackByIndex(i: number) { return i; }
   lc = (s?: string) => (s || '').toLowerCase();
   private elName(): string { return this.node?.name || ''; }
@@ -54,7 +80,7 @@ export class XsTreeNodeComponent implements OnInit, OnChanges {
   private basePathNoIndex(): string {
     const isEl = (this.node?.kind || '').toLowerCase() === 'element';
     if (!isEl) return this.vPrefix || '';
-    return (this.vPrefix ? this.vPrefix + '/' : '') + this.elName();
+    return (this.vPrefix ? this.vPrefix + '/' : '') + (this.node.name || '');
   }
 
   /** chave de choice isolada por PAI (evita conflito entre instâncias) */
@@ -179,13 +205,26 @@ export class XsTreeNodeComponent implements OnInit, OnChanges {
     const cur = this.occCount(n);
     return cur > (min ?? 0);
   }
-  incOcc(_: ViewNode) {
-    if (!this.canAdd(this.node)) return;
-    this.form.addGroup(this.basePathNoIndex());
+  incOcc(n: ViewNode) {
+    const base = this.basePathNoIndex();
+    const cur = this.form.getGroupCount(base);
+    this.form.setGroupCount(base, cur + 1);
+
+    this.liveXml.setGroupCount(base, cur + 1);
+
+    this.emitFormUpdate(this.getVisualPath(), '', true);
   }
-  decOcc(_: ViewNode) {
-    if (!this.canRemove(this.node)) return;
-    this.form.removeGroup(this.basePathNoIndex());
+  decOcc(n: ViewNode) {
+    const base = this.basePathNoIndex();
+    const cur = this.form.getGroupCount(base);
+    if (cur <= 0) return;
+
+    this.form.clearByPrefix(`${base}[${cur}]`);
+    this.form.setGroupCount(base, cur - 1);
+
+    this.liveXml.setGroupCount(base, cur - 1);
+
+    this.emitFormUpdate(this.getVisualPath(), '', true);
   }
   setOccTo(target: number): void {
     target = Math.max(0, target|0);
@@ -202,9 +241,36 @@ export class XsTreeNodeComponent implements OnInit, OnChanges {
   // -------------------- Choice --------------------
   isChoice(): boolean { return this.lc(this.node.kind) === 'choice'; }
 
+  private parentBasePath(): string { return this.vPrefix || ''; }
+
+  private optionElementNames(): string[] {
+    // choice pode ter wrappers; se precisar, troque por “firstElementNameDeep”
+    return (this.node.children || [])
+      .map(c => c.name)
+      .filter((n): n is string => !!n);
+  }
+
+  private chosenElementName(childId: string): string {
+    return (this.node.children || []).find(c => c.id === childId)?.name ?? '';
+  }
+
+
   selectedChoiceId = computed(() => this.form.getChoice(this.choiceKey()) ?? '');
   onChoose(childId: string) {
-    this.form.setChoice(this.choiceKey(), childId);
+    const base = this.vPrefix || '';                                        // PAI absoluto
+    const names = (this.node.children || []).map(c => c.name!).filter(Boolean);
+    const chosenName = (this.node.children || []).find(c => c.id === childId)?.name ?? '';
+
+    this.form.setChoice(
+      `${this.vPrefix}::choice@${this.node.id}`,
+      childId,
+      { basePath: base, optionElementNames: names, chosenElementName: chosenName }
+    );
+
+    this.liveXml.setChoice(base, names, chosenName || null);
+
+    this.emitFormUpdate(this.getVisualPath() + ' [choice]', childId, !!childId);
+
     console.groupCollapsed('[field:update]');
     console.log('path  :', this.getVisualPath() + ' [choice]');
     console.log('value :', childId);

@@ -261,6 +261,8 @@ export class LiveXmlService {
     return cur;
   }
 
+  
+
   /** Retorna o Element para um visualPath (ou null) sem criar nada */
   public resolveElement(path: string): Element | null {
     const doc = this.ensureDoc();
@@ -280,6 +282,31 @@ export class LiveXmlService {
   /** Retorna o Element por um path visual; null se não existir. */
   public getElement(visualPath: string): Element | null {
     return this.resolveElement(visualPath);
+  }
+
+  public setGroupCount(basePathNoIndex: string, count: number): void {
+    this._setGroupCountInternal(basePathNoIndex, count);
+    this.emitAll();
+  }
+
+  // rename do antigo privado (se já existir, só mantenha privado e chame aqui)
+  private _setGroupCountInternal(basePathNoIndex: string, count: number) {
+    const doc = this.ensureDoc();
+    const parts = basePathNoIndex.split('/').filter(Boolean);
+    if (parts.length < 2) return;
+
+    let parent = this.ensureElement(doc, parts.slice(0, -1).join('/'), true);
+    if (!parent) return;
+    const name = parts[parts.length - 1];
+
+    const same = Array.from(parent.children).filter(c => c.tagName === name) as Element[];
+    if (same.length < count) {
+      for (let i = same.length + 1; i <= count; i++) {
+        this.nthChildOrdered(doc, parent, this.normalizePath(parts.slice(0, -1).join('/')), name, i, true);
+      }
+    } else if (same.length > count) {
+      for (let i = same.length - 1; i >= count; i--) parent.removeChild(same[i]);
+    }
   }
 
   /** Conta quantas instâncias existem para '.../nome' (sem [n]) ou 0/1 se vier com [n] */
@@ -413,25 +440,6 @@ export class LiveXmlService {
   }
 
   /** Ajusta a contagem de instâncias para um basePath (sem [n] no final) */
-  private setGroupCount(basePathNoIndex: string, count: number) {
-    const doc = this.ensureDoc();
-    const parts = basePathNoIndex.split('/').filter(Boolean);
-    if (parts.length < 2) return;
-
-    let parent = this.ensureElement(doc, parts.slice(0, -1).join('/'), true);
-    if (!parent) return;
-    const name = parts[parts.length - 1];
-
-    const same = Array.from(parent.children).filter(c => c.tagName === name) as Element[];
-    if (same.length < count) {
-      for (let i = same.length + 1; i <= count; i++) {
-        this.nthChildOrdered(doc, parent, this.normalizePath(parts.slice(0, -1).join('/')), name, i, true);
-      }
-    } else if (same.length > count) {
-      for (let i = same.length - 1; i >= count; i--) parent.removeChild(same[i]);
-    }
-  }
-
   private enforceOrderEverywhere() {
     if (!this.doc) return;
     const reorder = (parent: Element, parentPath: string) => {

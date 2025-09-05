@@ -6,6 +6,7 @@ import { SchemaTreeAdapterService } from '../../../services/schema-tree-adapter.
 import { XsTreeNodeComponent } from '../../../component/xs-tree/xs-tree-node.component/xs-tree-node.component';
 import { ViewNode } from '../../../shared/models/schema-models';
 import { LiveXmlService } from '../../../services/live-xml.service';
+import { DynamicFormStateService } from '../../../services/dynamic-form-state.service';
 
 @Component({
   selector: 'app-novo-evento-winzard',
@@ -18,9 +19,9 @@ export class NovoEventoWinzardComponent implements OnInit {
   private route = inject(ActivatedRoute);
   private adapter = inject(SchemaTreeAdapterService);
   private liveXml = inject(LiveXmlService);
+  private form   = inject(DynamicFormStateService);
+  private eventName: string = '';
 
-  // precisa ser público para o template
-  eventName = '';
 
   // UI state
   @ViewChild('xmlDlg') xmlDlg!: ElementRef<HTMLDialogElement>;
@@ -60,18 +61,19 @@ export class NovoEventoWinzardComponent implements OnInit {
 
   ngOnInit(): void {
     this.bootstrapLiveXml();
+    this.refreshXmlFromForm();
   }
 
   // ---------- Live XML bootstrap ----------
   private bootstrapLiveXml() {
     this.liveXml.init('eSocial');
-
     const evtPath = `eSocial/${this.eventName}`;
     this.liveXml.ensurePath(evtPath);
 
-    const id = this.generateEventId();
-    this.liveXml.setValue(`${evtPath}/@Id`, id);
-    console.log('[liveXML] set Id em', `${evtPath}/@Id`, '=>', this.liveXml.getValue(`${evtPath}/@Id`));
+    // Id inicial (se ainda não existir)
+    if (!this.liveXml.getValue(`${evtPath}/@Id`)) {
+      this.liveXml.setValue(`${evtPath}/@Id`, this.generateEventId());
+    }
   }
 
   private generateEventId(cnpj?: string): string {
@@ -93,10 +95,6 @@ export class NovoEventoWinzardComponent implements OnInit {
   }
 
   // ---------- XML modal / preview ----------
-  onGerarXmlConsole(): void {
-    const xml = this.liveXml.serialize(true);
-    console.log('[LiveXML] XML gerado:\n' + xml);
-  }
 
   openXmlModal(): void {
     this.xmlText = this.liveXml.serialize(true);
@@ -142,23 +140,107 @@ export class NovoEventoWinzardComponent implements OnInit {
   }
 
   // ---------- utilidades de arquivo ----------
-  downloadXml(): void {
-    const blob = new Blob([this.xmlText], { type: 'application/xml;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = 'evento.xml';
-    a.click();
-    URL.revokeObjectURL(url);
+  private getDraftKey(): string {
+    return `esocial.event.draft:${this.eventName}`;
   }
+
+  private getLegacyDraftKey(): string {
+    return 'esocial.liveXml.draft';
+  }
+
+  saveDraftFromForm(): void {
+    const xml = this.liveXml.serialize(true); 
+    localStorage.setItem(this.getDraftKey(), xml);
+    alert('Rascunho salvo (formulário).');
+  }
+
   saveXmlLocal(): void {
+    this.xmlText = this.liveXml.serialize(true);
     localStorage.setItem('esocial.liveXml.draft', this.xmlText);
   }
+
+  loadDraftIntoModal(): void {
+    // tenta nova chave, senão tenta a antiga
+    let raw = localStorage.getItem(this.getDraftKey());
+    if (raw == null) raw = localStorage.getItem(this.getLegacyDraftKey());
+
+    if (raw == null) {
+      alert('Nenhum rascunho encontrado para este evento.');
+      return;
+    }
+    this.xmlText = raw;
+    this.revalidateXmlAndRequired();
+    if (!this.xmlDlg?.nativeElement.open) this.xmlDlg?.nativeElement.showModal();
+  }
+
+  clearEventDrafts(): void {
+    const prefix = 'esocial.event.draft:';
+    const toRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith(prefix)) toRemove.push(k);
+    }
+
+    if (!toRemove.length) {
+      alert('Nenhum rascunho de evento encontrado.');
+      return;
+    }
+    const ok = confirm(`Remover ${toRemove.length} rascunho(s) de evento?`);
+    if (!ok) return;
+
+    toRemove.forEach(k => localStorage.removeItem(k));
+    alert(`${toRemove.length} rascunho(s) removido(s).`);
+  }
+
   loadXmlLocal(): void {
     const raw = localStorage.getItem('esocial.liveXml.draft');
-    if (raw != null) {
-      this.xmlText = raw;
-      this.updateXmlValidity();
+    if (!raw) {
+      console.warn('[rascunho] nada salvo em localStorage');
+      return;
     }
+    this.importExternalXmlIntoForm(raw);  // popula form + xml
+    this.xmlText = this.liveXml.serialize(true);
+    console.log(this.xmlText);
+  }
+
+  clearAllLocalDrafts(): void {
+    const PREFIX = 'esocial.'; // ajuste se você usa outro prefixo
+    // coleciona as chaves primeiro (para não bagunçar o iterator ao remover)
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith(PREFIX)) keysToRemove.push(k);
+    }
+
+    if (!keysToRemove.length) {
+      alert('Nenhum rascunho encontrado.');
+      return;
+    }
+
+    const ok = confirm(`Remover ${keysToRemove.length} rascunho(s) local(is)?`);
+    if (!ok) return;
+
+    keysToRemove.forEach(k => localStorage.removeItem(k));
+
+    alert(`${keysToRemove.length} item(ns) removido(s) do armazenamento local.`);
+  }
+
+  private refreshXmlFromForm(): void {
+    this.xmlText = this.liveXml.serialize(true);
+  }
+
+  private importExternalXmlIntoForm(xml: string): void {
+    const r = this.root();
+    if (!r) return;
+
+    const snap = this.buildSnapshotFromXml(xml, r, this.eventName, 'eSocial');
+    this.form.loadSnapshot(snap);
+
+    this.liveXml.init('eSocial');
+    this.liveXml.applySnapshot(this.eventName, snap, 'eSocial');
+
+
+    this.refreshXmlFromForm();
   }
 
   // ---------- valida obrigatórios no doc passado ----------
@@ -260,5 +342,155 @@ export class NovoEventoWinzardComponent implements OnInit {
       }
     }
     return el ? 1 : 0;
+  }
+
+    private buildSnapshotFromXml(
+    xml: string,
+    viewRoot: ViewNode,
+    eventName: string,
+    rootName = 'eSocial'
+  ): {
+    fields: Record<string, { type: 'text'|'number'|'date'|'enum', value: string }>,
+    groupCounts: Record<string, number>,
+    choices: Record<string, string>,
+    choiceMeta: Record<string, { basePath: string; optionElementNames: string[]; chosenElementName: string }>
+  } {
+    const outFields: Record<string, {type:any, value:string}> = {};
+    const outGroups: Record<string, number> = {};
+    const outChoices: Record<string, string> = {};
+    const choiceMeta: Record<string, {basePath:string; optionElementNames:string[]; chosenElementName:string}> = {};
+
+    const doc = new DOMParser().parseFromString(xml, 'application/xml');
+    const root = doc.documentElement;
+    if (!root || root.tagName !== rootName) return { fields:{}, groupCounts:{}, choices:{}, choiceMeta:{} };
+    const evt = Array.from(root.children).find(e => e.tagName === eventName) as Element | undefined;
+    if (!evt) return { fields:{}, groupCounts:{}, choices:{}, choiceMeta:{} };
+
+    const lc = (s?: string) => (s||'').toLowerCase();
+    const firstElementNameDeep = (n: any): string | null => {
+      if (!n) return null;
+      if (lc(n.kind) === 'element' && n.name) return n.name;
+      for (const c of (n.children || [])) {
+        const r = firstElementNameDeep(c);
+        if (r) return r;
+      }
+      return null;
+    };
+    const countIn = (relPath: string): number => {
+      const parts = relPath.split('/').filter(Boolean);
+      let cur: Element | null = evt!;
+      for (let i=0;i<parts.length;i++) {
+        const m = parts[i].match(/^(.+?)(?:\[(\d+)])?$/);
+        const name = m?.[1] ?? parts[i];
+        const idx  = m?.[2] ? parseInt(m![2],10) : undefined;
+        const list = Array.from(cur!.children).filter(e=>e.tagName===name) as Element[];
+        if (i===parts.length-1 && idx==null) return list.length;
+        cur = (idx==null) ? (list[0] ?? null) : (list[idx-1] ?? null);
+        if (!cur) return 0;
+      }
+      return cur ? 1 : 0;
+    };
+    const textAt = (relPath: string): string | null => {
+      const parts = relPath.split('/').filter(Boolean);
+      let cur: Element | null = evt!;
+      for (let i=0;i<parts.length;i++) {
+        const m = parts[i].match(/^(.+?)(?:\[(\d+)])?$/);
+        const name = m?.[1] ?? parts[i];
+        const idx  = m?.[2] ? parseInt(m![2],10) : 1;
+        const list = Array.from(cur!.children).filter(e=>e.tagName===name) as Element[];
+        cur = list[idx-1] ?? null;
+        if (!cur) return null;
+      }
+      const t = (cur.textContent ?? '').trim();
+      return t || null;
+    };
+    const attrAt = (relElementPath: string, attrName: string): string | null => {
+      const parts = relElementPath.split('/').filter(Boolean);
+      let cur: Element | null = evt!;
+      for (let i=0;i<parts.length;i++) {
+        const m = parts[i].match(/^(.+?)(?:\[(\d+)])?$/);
+        const name = m?.[1] ?? parts[i];
+        const idx  = m?.[2] ? parseInt(m![2],10) : 1;
+        const list = Array.from(cur!.children).filter(e=>e.tagName===name) as Element[];
+        cur = list[idx-1] ?? null;
+        if (!cur) return null;
+      }
+      const v = cur.getAttribute(attrName);
+      return (v ?? '').trim() || null;
+    };
+    const effBase = (n:any): 'text'|'number'|'date'|'enum' => {
+      const base = lc(n?.meta?.base || n?.meta?.typeName || '');
+      if (base.includes('date')) return 'date';
+      if (n?.meta?.numericFacets) return 'number';
+      if ((n?.children||[]).some((c:any) => lc(c.kind)==='enumeration')) return 'enum';
+      return 'text';
+    };
+
+    const walk = (n:any, baseRel:string) => {
+      if (!n) return;
+      const k = lc(n.kind);
+
+      if (k === 'choice') {
+        const optionNames = (n.children || [])
+          .map((c:any) => firstElementNameDeep(c))
+          .filter(Boolean) as string[];
+
+        let chosenName: string | null = null;
+        let chosenChildId = '';
+        for (const opt of (n.children || [])) {
+          const nm = firstElementNameDeep(opt);
+          if (!nm) continue;
+          const probe = baseRel ? `${baseRel}/${nm}` : nm;
+          if (countIn(probe) > 0) { chosenName = nm; chosenChildId = opt.id; break; }
+        }
+        const choiceKey = `${baseRel}::choice@${n.id}`;
+        if (chosenName && chosenChildId) {
+          outChoices[choiceKey] = chosenChildId;
+          choiceMeta[choiceKey] = {
+            basePath: baseRel,
+            optionElementNames: Array.from(new Set(optionNames)),
+            chosenElementName: chosenName
+          };
+        }
+        const chosenNode = (n.children || []).find((c:any) => c.id === chosenChildId);
+        if (chosenNode && chosenName) walk(chosenNode, baseRel);
+        return;
+      }
+
+      if (k === 'attribute') {
+        const v = attrAt(baseRel, n.name);
+        if (v != null) outFields[`${baseRel}/@${n.name}`] = { type: 'text', value: v };
+        return;
+      }
+
+      if (k === 'element') {
+        const name = n.name;
+        const baseNoIdx = baseRel ? `${baseRel}/${name}` : name;
+        const cnt = countIn(baseNoIdx);
+
+        const max = n.meta?.occurs?.max;
+        const isRepeatable = max === 'unbounded' || (typeof max === 'number' && max > 1);
+        if (isRepeatable) outGroups[baseNoIdx] = cnt;
+
+        if ((n.children || []).length) {
+          for (let i = 1; i <= Math.max(cnt, 0); i++) {
+            for (const c of (n.children || [])) walk(c, `${baseNoIdx}[${i}]`);
+          }
+        } else {
+          const t = effBase(n);
+          for (let i = 1; i <= Math.max(cnt, 0); i++) {
+            const p = `${baseNoIdx}[${i}]`;
+            const v = textAt(p);
+            if (v != null) outFields[p] = { type: t, value: v };
+          }
+        }
+        return;
+      }
+
+      if ((n.children || []).length) for (const c of n.children) walk(c, baseRel);
+    };
+
+    walk(viewRoot, '');
+    return { fields: outFields, groupCounts: outGroups, choices: outChoices, choiceMeta };
   }
 }

@@ -6,14 +6,14 @@
         <button type="button" (click)="toggleLite()">
   {{ lite() ? 'Modo completo' : 'Modo lite' }}
 </button>
-        <button type="button" class="btn" (click)="saveXmlLocal()">Salvar</button>
+        <button type="button" class="btn" (click)="saveDraftFromForm()">Salvar</button>
     </div>
 
     <h2 class="title">{{ headerTitle() }}</h2>
 
 
     <div class="root" *ngIf="root() as r; else missing">
-      <app-xs-tree-node [node]="r" [lite]="lite()"></app-xs-tree-node>
+      <app-xs-tree-node [node]="r" [vPrefix]="'eSocial'" [lite]="lite()"></app-xs-tree-node>
     </div>
 
     <ng-template #missing>
@@ -40,6 +40,7 @@
         class="xml-text"
         [value]="xmlText"
         (input)="onXmlInput($event)"
+        disabled="true"
         spellcheck="false"></textarea>
 
       <!-- lista (opcional) dos que faltam -->
@@ -53,7 +54,8 @@
 
     <footer class="xml-dlg-footer">
       <button type="button" class="btn" (click)="closeXmlModal()">Voltar</button>
-      <button type="button" class="btn" (click)="loadXmlLocal()">Carregar rascunho</button>
+      <button type="button" class="btn" (click)="loadDraftIntoModal()">Carregar rascunho</button>
+      <button type="button" class="btn" (click)="clearAllLocalDrafts()">Limpar rascunhos</button>
       <button type="button" class="btn" (click)="applyXmlToForm()">Aplicar</button>
       <span class="spacer"></span>
     </footer>
