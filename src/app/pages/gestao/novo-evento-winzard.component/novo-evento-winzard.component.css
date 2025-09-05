@@ -8,6 +8,29 @@
 .title {
   margin: 0 0 10px;
 }
+
+:host {
+  display: block;
+}
+
+/* barra de ações fixa no topo ao rolar */
+.actions {
+  position: sticky;
+  top: 0;
+  z-index: 1000;              /* acima do conteúdo */
+  display: flex;
+  gap: .5rem;
+  align-items: center;
+  padding: .5rem 1rem;
+  background: #fff;           /* ou var(--surface) */
+  border-bottom: 1px solid #e5e7eb;
+  box-shadow: 0 1px 4px rgba(0,0,0,.05);
+}
+
+/* deixa o título um pouco separado da barra */
+.title {
+  margin: 1rem 0;
+}
 .actions {
   display: flex;
   gap: 8px;

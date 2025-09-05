@@ -2,14 +2,18 @@
         <button class="button" routerLink="/gestao">← Voltar</button>
         <button type="button" (click)="expandAll()">Expandir tudo</button>
         <button type="button" (click)="collapseAll()">Recolher tudo</button>
-        <button type="button" class="btn" (click)="openXmlModal()">XML / Preview</button>
+        <button type="button" class="btn" (click)="openXmlModal()">Prévia do XML</button>
+        <button type="button" (click)="toggleLite()">
+  {{ lite() ? 'Modo completo' : 'Modo lite' }}
+</button>
+        <button type="button" class="btn" (click)="saveXmlLocal()">Salvar</button>
     </div>
 
     <h2 class="title">{{ headerTitle() }}</h2>
 
 
     <div class="root" *ngIf="root() as r; else missing">
-      <app-xs-tree-node [node]="r"></app-xs-tree-node>
+      <app-xs-tree-node [node]="r" [lite]="lite()"></app-xs-tree-node>
     </div>
 
     <ng-template #missing>
@@ -48,14 +52,10 @@
     </div>
 
     <footer class="xml-dlg-footer">
+      <button type="button" class="btn" (click)="closeXmlModal()">Voltar</button>
       <button type="button" class="btn" (click)="loadXmlLocal()">Carregar rascunho</button>
-      <button type="button" class="btn" (click)="saveXmlLocal()">Salvar rascunho</button>
+      <button type="button" class="btn" (click)="applyXmlToForm()">Aplicar</button>
       <span class="spacer"></span>
-      <button type="button" class="btn" (click)="downloadXml()">Baixar .xml</button>
-      <button type="button" class="btn btn-primary" [disabled]="!(xmlOk && requiredOk)" (click)="applyXmlToForm()">
-        Aplicar no formulário
-      </button>
-      <button type="button" class="btn" (click)="closeXmlModal()">Fechar</button>
     </footer>
   </form>
 </dialog>
